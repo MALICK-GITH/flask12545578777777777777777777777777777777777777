@@ -14,25 +14,32 @@ def home():
         data = []
         for match in matches:
             try:
+                # Scores individuels
+                s1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
+                s2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
+                score = f"{match.get('O1', '-')}: {s1} — {match.get('O2', '-')}: {s2}"
+
+                # Statut
+                status_raw = match.get("SC", {}).get("ST")
+                if isinstance(status_raw, int):
+                    status = f"En cours ({status_raw}′)"
+                elif match.get("SC", {}).get("TT") == 3:
+                    status = "Terminé"
+                else:
+                    status = "À venir"
+
+                # Cotes
                 odds_data = []
-                prediction = "–"
-                
-                # Récupère les cotes depuis Markets > E
                 for market in match.get("Markets", []):
                     if market.get("G") == 1:
-                        events = market.get("E", [])
-                        for o in events:
+                        for o in market.get("E", []):
                             label = {1: '1', 2: '2', 3: 'X'}.get(o.get("T"))
                             if label and o.get("C"):
-                                odds_data.append({
-                                    "label": label,
-                                    "cote": o.get("C")
-                                })
-
-                # Format affichable des cotes
+                                odds_data.append({"label": label, "cote": o["C"]})
                 formatted_odds = [f"{od['label']}: {od['cote']}" for od in odds_data]
 
-                # Déterminer une prédiction simple basée sur la plus faible cote
+                # Prédiction
+                prediction = "–"
                 if odds_data:
                     best = min(odds_data, key=lambda x: x["cote"])
                     if best["label"] == "1":
@@ -45,9 +52,10 @@ def home():
                 data.append({
                     "match": f"{match.get('O1', '–')} vs {match.get('O2', '–')}",
                     "league": match.get("LE", "–"),
-                    "score": match.get("SC", {}).get("FS", {}).get("S1", "–"),
+                    "score": score,
                     "temp": match.get("MIS", [{}]*10)[2].get("V", "–"),
                     "humid": match.get("MIS", [{}]*10)[8].get("V", "–"),
+                    "status": status,
                     "odds": formatted_odds or ["–"],
                     "prediction": prediction
                 })
@@ -66,34 +74,12 @@ TEMPLATE = """
     <meta charset="utf-8">
     <title>1xBet Live</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background: #f4f4f4;
-        }
-        h2 {
-            text-align: center;
-            color: #333;
-        }
-        table {
-            border-collapse: collapse;
-            margin: auto;
-            width: 95%;
-            background: white;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        th, td {
-            padding: 12px;
-            text-align: center;
-            border: 1px solid #ddd;
-        }
-        th {
-            background-color: #2ecc71;
-            color: white;
-        }
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+        h2 { text-align: center; color: #333; }
+        table { border-collapse: collapse; margin: auto; width: 95%; background: white; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; text-align: center; border: 1px solid #ddd; }
+        th { background-color: #2ecc71; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
     </style>
 </head>
 <body>
@@ -101,12 +87,14 @@ TEMPLATE = """
     <table>
         <tr>
             <th>Match</th><th>League</th><th>Score</th>
-            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th>
+            <th>Statut</th><th>Température</th><th>Humidité</th>
+            <th>Cotes</th><th>Prédiction</th>
         </tr>
         {% for m in data %}
         <tr>
             <td>{{m.match}}</td><td>{{m.league}}</td><td>{{m.score}}</td>
-            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
+            <td>{{m.status}}</td><td>{{m.temp}}°C</td><td>{{m.humid}}%</td>
+            <td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
         </tr>
         {% endfor %}
     </table>
