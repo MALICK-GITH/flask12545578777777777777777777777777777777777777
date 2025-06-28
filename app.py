@@ -7,7 +7,7 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     try:
-        selected_sport = request.args.get("sport")
+        selected_sport = request.args.get("sport", "")
 
         api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
         response = requests.get(api_url)
@@ -25,7 +25,7 @@ def home():
                 sports_detected.add(sport)
 
                 if selected_sport and sport != selected_sport:
-                    continue  # skip si ce sport n'est pas sélectionné
+                    continue
 
                 s1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
                 s2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
@@ -49,6 +49,7 @@ def home():
                                     "type": {1: "1", 2: "2", 3: "X"}.get(t),
                                     "cote": o.get("C")
                                 })
+
                 formatted_odds = [f"{od['type']}: {od['cote']}" for od in odds_data] or ["–"]
 
                 prediction = "–"
@@ -77,7 +78,7 @@ def home():
             except:
                 continue
 
-        return render_template_string(TEMPLATE, data=data, sports=sorted(sports_detected), selected_sport=selected_sport or "Tous")
+        return render_template_string(TEMPLATE, data=data, sports=sorted(sports_detected), selected_sport=selected_sport or "Tous les sports")
 
     except Exception as e:
         return f"Erreur : {e}"
@@ -88,14 +89,12 @@ def detect_sport(league_name):
         return "Tennis"
     elif any(word in league for word in ["nbl", "ipbl", "basket"]):
         return "Basketball"
-    elif any(word in league for word in ["table", "tbl"]):
-        return "Table Basketball"
-    elif any(word in league for word in ["daily", "tour", "grand slam"]):
-        return "Tennis"
-    elif any(word in league for word in ["hockey"]):
+    elif "hockey" in league:
         return "Hockey"
+    elif any(word in league for word in ["tbl", "table"]):
+        return "Table Basketball"
     else:
-        return "Football"  # par défaut
+        return "Football"
 
 TEMPLATE = """
 <!DOCTYPE html>
@@ -104,22 +103,23 @@ TEMPLATE = """
     <meta charset="utf-8">
     <title>Matchs en direct</title>
     <style>
-        body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-        h2 { text-align: center; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+        h2 { text-align: center; margin-bottom: 10px; }
+        form { text-align: center; margin-bottom: 20px; }
+        select { padding: 8px; font-size: 14px; }
         table { border-collapse: collapse; margin: auto; width: 95%; background: white; }
         th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
         th { background: #3498db; color: white; }
-        select { padding: 8px; font-size: 14px; }
-        form { text-align: center; margin-bottom: 20px; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
     </style>
 </head>
 <body>
     <h2>📊 Matchs en direct – {{ selected_sport }}</h2>
 
     <form method="get">
-        <label for="sport">Choisir un sport : </label>
+        <label for="sport">Choisir un sport :</label>
         <select name="sport" onchange="this.form.submit()">
-            <option value="">Tous</option>
+            <option value="">Tous les sports</option>
             {% for s in sports %}
                 <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
             {% endfor %}
