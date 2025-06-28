@@ -33,15 +33,12 @@ def home():
                 if selected_league and league != selected_league:
                     continue
 
-                # Score par équipe
-                s1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
-                s2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
-                score = f"{team1}: {s1} — {team2}: {s2}"
+                score1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
+                score2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
 
-                # Statut et heure
                 minute = match.get("SC", {}).get("ST")
-                dt_ts = match.get("S", 0)
-                match_time = datetime.datetime.utcfromtimestamp(dt_ts).strftime('%d/%m/%Y %H:%M') if dt_ts else "–"
+                match_ts = match.get("S", 0)
+                match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
 
                 if isinstance(minute, int):
                     status = f"En cours ({minute}′)"
@@ -50,7 +47,6 @@ def home():
                 else:
                     status = "À venir"
 
-                # Cotes
                 odds_data = []
                 for market in match.get("Markets", []):
                     if market.get("G") == 1:
@@ -78,10 +74,12 @@ def home():
                 humid = meteo_data[8].get("V", "–")
 
                 data.append({
-                    "match": f"{team1} vs {team2}",
+                    "team1": team1,
+                    "team2": team2,
+                    "score1": score1,
+                    "score2": score2,
                     "league": league,
                     "sport": sport,
-                    "score": score,
                     "status": status,
                     "datetime": match_time,
                     "temp": temp,
@@ -92,8 +90,9 @@ def home():
             except:
                 continue
 
-        return render_template_string(TEMPLATE, data=data, sports=sorted(sports_detected), leagues=sorted(leagues_detected),
-                                      selected_sport=selected_sport or "Tous", selected_league=selected_league or "Toutes")
+        return render_template_string(TEMPLATE, data=data, sports=sorted(sports_detected),
+                                      leagues=sorted(leagues_detected), selected_sport=selected_sport or "Tous les sports",
+                                      selected_league=selected_league or "Toutes les ligues")
 
     except Exception as e:
         return f"Erreur : {e}"
@@ -124,7 +123,7 @@ TEMPLATE = """
         h2 { text-align: center; }
         form { text-align: center; margin-bottom: 20px; }
         select { padding: 8px; margin: 0 10px; font-size: 14px; }
-        table { border-collapse: collapse; margin: auto; width: 97%; background: white; }
+        table { border-collapse: collapse; margin: auto; width: 98%; background: white; }
         th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
         th { background: #2c3e50; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
@@ -154,13 +153,15 @@ TEMPLATE = """
 
     <table>
         <tr>
-            <th>Match</th><th>Ligue</th><th>Sport</th><th>Score</th><th>Statut</th>
-            <th>Date & Heure</th><th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th>
+            <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
+            <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
+            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th>
         </tr>
         {% for m in data %}
         <tr>
-            <td>{{m.match}}</td><td>{{m.league}}</td><td>{{m.sport}}</td><td>{{m.score}}</td><td>{{m.status}}</td>
-            <td>{{m.datetime}}</td><td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
+            <td>{{m.team1}}</td><td>{{m.score1}}</td><td>{{m.score2}}</td><td>{{m.team2}}</td>
+            <td>{{m.sport}}</td><td>{{m.league}}</td><td>{{m.status}}</td><td>{{m.datetime}}</td>
+            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
         </tr>
         {% endfor %}
     </table>
