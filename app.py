@@ -1,6 +1,7 @@
 from flask import Flask, request, render_template_string
 import requests
 import os
+import datetime
 
 app = Flask(__name__)
 
@@ -8,12 +9,14 @@ app = Flask(__name__)
 def home():
     try:
         selected_sport = request.args.get("sport", "").strip()
+        selected_league = request.args.get("league", "").strip()
 
         api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
 
         sports_detected = set()
+        leagues_detected = set()
         data = []
 
         for match in matches:
@@ -23,15 +26,23 @@ def home():
                 team2 = match.get("O2", "–")
                 sport = detect_sport(league).strip()
                 sports_detected.add(sport)
+                leagues_detected.add(league)
 
                 if selected_sport and sport != selected_sport:
                     continue
+                if selected_league and league != selected_league:
+                    continue
 
+                # Score par équipe
                 s1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
                 s2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
                 score = f"{team1}: {s1} — {team2}: {s2}"
 
+                # Statut et heure
                 minute = match.get("SC", {}).get("ST")
+                dt_ts = match.get("S", 0)
+                match_time = datetime.datetime.utcfromtimestamp(dt_ts).strftime('%d/%m/%Y %H:%M') if dt_ts else "–"
+
                 if isinstance(minute, int):
                     status = f"En cours ({minute}′)"
                 elif match.get("SC", {}).get("TT") == 3:
@@ -39,6 +50,7 @@ def home():
                 else:
                     status = "À venir"
 
+                # Cotes
                 odds_data = []
                 for market in match.get("Markets", []):
                     if market.get("G") == 1:
@@ -71,6 +83,7 @@ def home():
                     "sport": sport,
                     "score": score,
                     "status": status,
+                    "datetime": match_time,
                     "temp": temp,
                     "humid": humid,
                     "odds": formatted_odds,
@@ -79,7 +92,8 @@ def home():
             except:
                 continue
 
-        return render_template_string(TEMPLATE, data=data, sports=sorted(sports_detected), selected_sport=selected_sport or "Tous les sports")
+        return render_template_string(TEMPLATE, data=data, sports=sorted(sports_detected), leagues=sorted(leagues_detected),
+                                      selected_sport=selected_sport or "Tous", selected_league=selected_league or "Toutes")
 
     except Exception as e:
         return f"Erreur : {e}"
@@ -94,6 +108,8 @@ def detect_sport(league_name):
         return "Hockey"
     elif any(word in league for word in ["tbl", "table"]):
         return "Table Basketball"
+    elif "cricket" in league:
+        return "Cricket"
     else:
         return "Football"
 
@@ -104,38 +120,47 @@ TEMPLATE = """
     <meta charset="utf-8">
     <title>Matchs en direct</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+        body { font-family: Arial; padding: 20px; background: #f4f4f4; }
         h2 { text-align: center; }
         form { text-align: center; margin-bottom: 20px; }
-        select { padding: 8px; font-size: 14px; }
-        table { border-collapse: collapse; margin: auto; width: 96%; background: white; }
+        select { padding: 8px; margin: 0 10px; font-size: 14px; }
+        table { border-collapse: collapse; margin: auto; width: 97%; background: white; }
         th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
         th { background: #2c3e50; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
     </style>
 </head>
 <body>
-    <h2>📊 Matchs en direct — {{ selected_sport }}</h2>
+    <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }}</h2>
 
     <form method="get">
-        <label for="sport">Choisir un sport :</label>
-        <select name="sport" onchange="this.form.submit()">
-            <option value="">Tous les sports</option>
-            {% for s in sports %}
-                <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
-            {% endfor %}
-        </select>
+        <label>Sport :
+            <select name="sport" onchange="this.form.submit()">
+                <option value="">Tous les sports</option>
+                {% for s in sports %}
+                    <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Ligue :
+            <select name="league" onchange="this.form.submit()">
+                <option value="">Toutes les ligues</option>
+                {% for l in leagues %}
+                    <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
+                {% endfor %}
+            </select>
+        </label>
     </form>
 
     <table>
         <tr>
             <th>Match</th><th>Ligue</th><th>Sport</th><th>Score</th><th>Statut</th>
-            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th>
+            <th>Date & Heure</th><th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th>
         </tr>
         {% for m in data %}
         <tr>
             <td>{{m.match}}</td><td>{{m.league}}</td><td>{{m.sport}}</td><td>{{m.score}}</td><td>{{m.status}}</td>
-            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
+            <td>{{m.datetime}}</td><td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
         </tr>
         {% endfor %}
     </table>
