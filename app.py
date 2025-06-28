@@ -1,5 +1,6 @@
 from flask import Flask, render_template_string
 import requests
+import os  # ← ajouté ici pour accéder à la variable PORT
 
 app = Flask(__name__)
 
@@ -51,3 +52,8 @@ TEMPLATE = """
 </body>
 </html>
 """
+
+# 👉 Ce bloc permet à Render de détecter correctement l'application
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
