@@ -32,24 +32,31 @@ def home():
                 score1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
                 score2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
 
-                tt = match.get("SC", {}).get("TT")
-                minute = match.get("SC", {}).get("ST")
+                try:
+                    score1_val = int(score1)
+                    score2_val = int(score2)
+                    scores_exist = score1_val >= 0 or score2_val >= 0
+                except:
+                    scores_exist = False
 
-                if tt == 3:
-                    status = "Terminé"
-                    is_finished = True
-                    is_live = False
-                    is_upcoming = False
-                elif isinstance(minute, int) and minute > 0:
+                minute = match.get("SC", {}).get("ST")
+                tt = match.get("SC", {}).get("TT")
+
+                if isinstance(minute, int) and minute > 0:
                     status = f"En cours ({minute}′)"
                     is_live = True
                     is_finished = False
                     is_upcoming = False
+                elif tt == 3 or scores_exist:
+                    status = "Terminé"
+                    is_live = False
+                    is_finished = True
+                    is_upcoming = False
                 else:
                     status = "À venir"
-                    is_upcoming = True
                     is_live = False
                     is_finished = False
+                    is_upcoming = True
 
                 if selected_sport and sport != selected_sport:
                     continue
@@ -57,9 +64,9 @@ def home():
                     continue
                 if selected_status == "live" and not is_live:
                     continue
-                if selected_status == "upcoming" and not is_upcoming:
-                    continue
                 if selected_status == "finished" and not is_finished:
+                    continue
+                if selected_status == "upcoming" and not is_upcoming:
                     continue
 
                 match_ts = match.get("S", 0)
@@ -134,10 +141,8 @@ def detect_sport(league_name):
     else:
         return "Football"
 
-TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
+TEMPLATE = """<!DOCTYPE html>
+<html><head>
     <meta charset="utf-8">
     <title>Matchs en direct</title>
     <style>
@@ -150,8 +155,7 @@ TEMPLATE = """
         th { background: #2c3e50; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
     </style>
-</head>
-<body>
+</head><body>
     <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
 
     <form method="get">
@@ -195,9 +199,7 @@ TEMPLATE = """
         </tr>
         {% endfor %}
     </table>
-</body>
-</html>
-"""
+</body></html>"""
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
