@@ -10,6 +10,7 @@ def home():
     try:
         selected_sport = request.args.get("sport", "").strip()
         selected_league = request.args.get("league", "").strip()
+        selected_status = request.args.get("status", "").strip()
 
         api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
         response = requests.get(api_url)
@@ -28,11 +29,6 @@ def home():
                 sports_detected.add(sport)
                 leagues_detected.add(league)
 
-                if selected_sport and sport != selected_sport:
-                    continue
-                if selected_league and league != selected_league:
-                    continue
-
                 score1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
                 score2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
 
@@ -40,9 +36,24 @@ def home():
                 match_ts = match.get("S", 0)
                 match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
 
-                if isinstance(minute, int):
+                is_live = isinstance(minute, int)
+                is_finished = match.get("SC", {}).get("TT") == 3
+                is_upcoming = not is_live and not is_finished
+
+                if selected_sport and sport != selected_sport:
+                    continue
+                if selected_league and league != selected_league:
+                    continue
+                if selected_status == "live" and not is_live:
+                    continue
+                if selected_status == "upcoming" and not is_upcoming:
+                    continue
+                if selected_status == "finished" and not is_finished:
+                    continue
+
+                if is_live:
                     status = f"En cours ({minute}′)"
-                elif match.get("SC", {}).get("TT") == 3:
+                elif is_finished:
                     status = "Terminé"
                 else:
                     status = "À venir"
@@ -90,9 +101,13 @@ def home():
             except:
                 continue
 
-        return render_template_string(TEMPLATE, data=data, sports=sorted(sports_detected),
-                                      leagues=sorted(leagues_detected), selected_sport=selected_sport or "Tous les sports",
-                                      selected_league=selected_league or "Toutes les ligues")
+        return render_template_string(TEMPLATE, data=data,
+            sports=sorted(sports_detected),
+            leagues=sorted(leagues_detected),
+            selected_sport=selected_sport or "Tous",
+            selected_league=selected_league or "Toutes",
+            selected_status=selected_status or "Tous"
+        )
 
     except Exception as e:
         return f"Erreur : {e}"
@@ -130,12 +145,12 @@ TEMPLATE = """
     </style>
 </head>
 <body>
-    <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }}</h2>
+    <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
 
     <form method="get">
         <label>Sport :
             <select name="sport" onchange="this.form.submit()">
-                <option value="">Tous les sports</option>
+                <option value="">Tous</option>
                 {% for s in sports %}
                     <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
                 {% endfor %}
@@ -143,10 +158,18 @@ TEMPLATE = """
         </label>
         <label>Ligue :
             <select name="league" onchange="this.form.submit()">
-                <option value="">Toutes les ligues</option>
+                <option value="">Toutes</option>
                 {% for l in leagues %}
                     <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
                 {% endfor %}
+            </select>
+        </label>
+        <label>Statut :
+            <select name="status" onchange="this.form.submit()">
+                <option value="">Tous</option>
+                <option value="live" {% if selected_status == "live" %}selected{% endif %}>En direct</option>
+                <option value="upcoming" {% if selected_status == "upcoming" %}selected{% endif %}>À venir</option>
+                <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
             </select>
         </label>
     </form>
