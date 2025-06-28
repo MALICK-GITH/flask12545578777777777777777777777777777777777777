@@ -32,13 +32,24 @@ def home():
                 score1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
                 score2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
 
+                tt = match.get("SC", {}).get("TT")
                 minute = match.get("SC", {}).get("ST")
-                match_ts = match.get("S", 0)
-                match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
 
-                is_live = isinstance(minute, int)
-                is_finished = match.get("SC", {}).get("TT") == 3
-                is_upcoming = not is_live and not is_finished
+                if tt == 3:
+                    status = "Terminé"
+                    is_finished = True
+                    is_live = False
+                    is_upcoming = False
+                elif isinstance(minute, int) and minute > 0:
+                    status = f"En cours ({minute}′)"
+                    is_live = True
+                    is_finished = False
+                    is_upcoming = False
+                else:
+                    status = "À venir"
+                    is_upcoming = True
+                    is_live = False
+                    is_finished = False
 
                 if selected_sport and sport != selected_sport:
                     continue
@@ -51,12 +62,8 @@ def home():
                 if selected_status == "finished" and not is_finished:
                     continue
 
-                if is_live:
-                    status = f"En cours ({minute}′)"
-                elif is_finished:
-                    status = "Terminé"
-                else:
-                    status = "À venir"
+                match_ts = match.get("S", 0)
+                match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
 
                 odds_data = []
                 for market in match.get("Markets", []):
