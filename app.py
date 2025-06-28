@@ -7,7 +7,7 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     try:
-        selected_sport = request.args.get("sport", "")
+        selected_sport = request.args.get("sport", "").strip()
 
         api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
         response = requests.get(api_url)
@@ -21,7 +21,7 @@ def home():
                 league = match.get("LE", "–")
                 team1 = match.get("O1", "–")
                 team2 = match.get("O2", "–")
-                sport = detect_sport(league)
+                sport = detect_sport(league).strip()
                 sports_detected.add(sport)
 
                 if selected_sport and sport != selected_sport:
@@ -68,6 +68,7 @@ def home():
                 data.append({
                     "match": f"{team1} vs {team2}",
                     "league": league,
+                    "sport": sport,
                     "score": score,
                     "status": status,
                     "temp": temp,
@@ -87,7 +88,7 @@ def detect_sport(league_name):
     league = league_name.lower()
     if any(word in league for word in ["wta", "atp", "tennis"]):
         return "Tennis"
-    elif any(word in league for word in ["nbl", "ipbl", "basket"]):
+    elif any(word in league for word in ["basket", "nbl", "nba", "ipbl"]):
         return "Basketball"
     elif "hockey" in league:
         return "Hockey"
@@ -104,17 +105,17 @@ TEMPLATE = """
     <title>Matchs en direct</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
-        h2 { text-align: center; margin-bottom: 10px; }
+        h2 { text-align: center; }
         form { text-align: center; margin-bottom: 20px; }
         select { padding: 8px; font-size: 14px; }
-        table { border-collapse: collapse; margin: auto; width: 95%; background: white; }
+        table { border-collapse: collapse; margin: auto; width: 96%; background: white; }
         th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
-        th { background: #3498db; color: white; }
+        th { background: #2c3e50; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
     </style>
 </head>
 <body>
-    <h2>📊 Matchs en direct – {{ selected_sport }}</h2>
+    <h2>📊 Matchs en direct — {{ selected_sport }}</h2>
 
     <form method="get">
         <label for="sport">Choisir un sport :</label>
@@ -128,12 +129,12 @@ TEMPLATE = """
 
     <table>
         <tr>
-            <th>Match</th><th>Ligue</th><th>Score</th><th>Statut</th>
+            <th>Match</th><th>Ligue</th><th>Sport</th><th>Score</th><th>Statut</th>
             <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th>
         </tr>
         {% for m in data %}
         <tr>
-            <td>{{m.match}}</td><td>{{m.league}}</td><td>{{m.score}}</td><td>{{m.status}}</td>
+            <td>{{m.match}}</td><td>{{m.league}}</td><td>{{m.sport}}</td><td>{{m.score}}</td><td>{{m.status}}</td>
             <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
         </tr>
         {% endfor %}
