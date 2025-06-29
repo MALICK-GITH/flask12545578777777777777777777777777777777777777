@@ -73,17 +73,24 @@ def home():
                 match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
 
                 odds_data = []
-                for market in match.get("Markets", []):
+                debug_markets = match.get("Markets", [])
+                if not debug_markets:
+                    print(f"Aucun marché pour le match {team1} vs {team2}")
+                for market in debug_markets:
                     if market.get("G") == 1:
                         for o in market.get("E", []):
                             t = o.get("T")
-                            if t in [1, 2, 3]:
+                            cote = o.get("C")
+                            if t in [1, 2, 3] and cote is not None:
                                 odds_data.append({
                                     "type": {1: "1", 2: "2", 3: "X"}.get(t),
-                                    "cote": o.get("C")
+                                    "cote": cote
                                 })
 
-                formatted_odds = [f"{od['type']}: {od['cote']}" for od in odds_data] or ["–"]
+                if not odds_data:
+                    formatted_odds = ["Pas de cotes disponibles"]
+                else:
+                    formatted_odds = [f"{od['type']}: {od['cote']}" for od in odds_data]
 
                 prediction = "–"
                 if odds_data:
