@@ -134,7 +134,8 @@ def home():
                     "temp": temp,
                     "humid": humid,
                     "odds": formatted_odds,
-                    "prediction": prediction
+                    "prediction": prediction,
+                    "id": match.get("I", None)
                 })
             except Exception as e:
                 print(f"Erreur lors du traitement d'un match: {e}")
@@ -177,6 +178,120 @@ def detect_sport(league_name):
         return "Cricket"
     else:
         return "Football"
+
+@app.route('/match/<int:match_id>')
+def match_details(match_id):
+    try:
+        # Récupérer les données de l'API (ou brute.json si besoin)
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
+        response = requests.get(api_url)
+        matches = response.json().get("Value", [])
+        match = next((m for m in matches if m.get("I") == match_id), None)
+        if not match:
+            return f"Aucun match trouvé pour l'identifiant {match_id}"
+        # Infos principales
+        team1 = match.get("O1", "–")
+        team2 = match.get("O2", "–")
+        league = match.get("LE", "–")
+        sport = detect_sport(league)
+        # Scores
+        score1 = match.get("SC", {}).get("FS", {}).get("S1")
+        score2 = match.get("SC", {}).get("FS", {}).get("S2")
+        try:
+            score1 = int(score1) if score1 is not None else 0
+        except:
+            score1 = 0
+        try:
+            score2 = int(score2) if score2 is not None else 0
+        except:
+            score2 = 0
+        # Statistiques avancées
+        stats = []
+        st = match.get("SC", {}).get("ST", [])
+        if st and isinstance(st, list) and len(st) > 0 and "Value" in st[0]:
+            for stat in st[0]["Value"]:
+                nom = stat.get("N", "?")
+                s1 = stat.get("S1", "0")
+                s2 = stat.get("S2", "0")
+                stats.append({"nom": nom, "s1": s1, "s2": s2})
+        # Explication prédiction (simple)
+        explication = "La prédiction est basée sur les cotes et les statistiques principales (tirs, possession, etc.)."  # Peut être enrichi
+        # Prédiction
+        odds_data = []
+        for o in match.get("E", []):
+            if o.get("G") == 1 and o.get("T") in [1, 2, 3] and o.get("C") is not None:
+                odds_data.append({
+                    "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
+                    "cote": o.get("C")
+                })
+        if not odds_data:
+            for ae in match.get("AE", []):
+                if ae.get("G") == 1:
+                    for o in ae.get("ME", []):
+                        if o.get("T") in [1, 2, 3] and o.get("C") is not None:
+                            odds_data.append({
+                                "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
+                                "cote": o.get("C")
+                            })
+        prediction = "–"
+        if odds_data:
+            best = min(odds_data, key=lambda x: x["cote"])
+            prediction = {
+                "1": f"{team1} gagne",
+                "2": f"{team2} gagne",
+                "X": "Match nul"
+            }.get(best["type"], "–")
+        # HTML avec graphiques Chart.js CDN
+        return f'''
+        <!DOCTYPE html>
+        <html><head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>Détails du match</title>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <style>
+                body {{ font-family: Arial; padding: 20px; background: #f4f4f4; }}
+                .container {{ max-width: 700px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px #ccc; padding: 20px; }}
+                h2 {{ text-align: center; }}
+                .stats-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                .stats-table th, .stats-table td {{ border: 1px solid #ccc; padding: 8px; text-align: center; }}
+                .back-btn {{ margin-bottom: 20px; display: inline-block; }}
+            </style>
+        </head><body>
+            <div class="container">
+                <a href="/" class="back-btn">&larr; Retour à la liste</a>
+                <h2>{team1} vs {team2}</h2>
+                <p><b>Ligue :</b> {league} | <b>Sport :</b> {sport}</p>
+                <p><b>Score :</b> {score1} - {score2}</p>
+                <p><b>Prédiction du bot :</b> {prediction}</p>
+                <p><b>Explication :</b> {explication}</p>
+                <h3>Statistiques principales</h3>
+                <table class="stats-table">
+                    <tr><th>Statistique</th><th>{team1}</th><th>{team2}</th></tr>
+                    {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td></tr>' for s in stats)}
+                </table>
+                <canvas id="statsChart" height="200"></canvas>
+            </div>
+            <script>
+                const labels = { [repr(s['nom']) for s in stats] };
+                const data1 = { [float(s['s1']) if s['s1'].replace('.', '', 1).isdigit() else 0 for s in stats] };
+                const data2 = { [float(s['s2']) if s['s2'].replace('.', '', 1).isdigit() else 0 for s in stats] };
+                new Chart(document.getElementById('statsChart'), {{
+                    type: 'bar',
+                    data: {{
+                        labels: labels,
+                        datasets: [
+                            {{ label: '{team1}', data: data1, backgroundColor: 'rgba(44,62,80,0.7)' }},
+                            {{ label: '{team2}', data: data2, backgroundColor: 'rgba(39,174,96,0.7)' }}
+                        ]
+                    }},
+                    options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
+                }});
+            </script>
+        </body></html>
+        '''
+    except Exception as e:
+        return f"Erreur lors de l'affichage des détails du match : {e}"
 
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
@@ -281,13 +396,14 @@ TEMPLATE = """<!DOCTYPE html>
         <tr>
             <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
             <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
-            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th>
+            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Détails</th>
         </tr>
         {% for m in data %}
         <tr>
             <td>{{m.team1}}</td><td>{{m.score1}}</td><td>{{m.score2}}</td><td>{{m.team2}}</td>
             <td>{{m.sport}}</td><td>{{m.league}}</td><td>{{m.status}}</td><td>{{m.datetime}}</td>
             <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
+            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a>{% else %}–{% endif %}</td>
         </tr>
         {% endfor %}
     </table>
