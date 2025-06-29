@@ -29,33 +29,45 @@ def home():
                 sports_detected.add(sport)
                 leagues_detected.add(league)
 
-                score1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
-                score2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
-
+                # --- Score ---
+                score1 = match.get("SC", {}).get("FS", {}).get("S1")
+                score2 = match.get("SC", {}).get("FS", {}).get("S2")
                 try:
-                    score1_val = int(score1)
-                    score2_val = int(score2)
-                    scores_exist = score1_val >= 0 or score2_val >= 0
+                    score1 = int(score1) if score1 is not None else 0
                 except:
-                    scores_exist = False
+                    score1 = 0
+                try:
+                    score2 = int(score2) if score2 is not None else 0
+                except:
+                    score2 = 0
 
-                minute = match.get("SC", {}).get("ST")
+                # --- Minute ---
+                minute = None
+                # Prendre d'abord SC.TS (temps écoulé en secondes)
+                sc = match.get("SC", {})
+                if "TS" in sc and isinstance(sc["TS"], int):
+                    minute = sc["TS"] // 60
+                elif "ST" in sc and isinstance(sc["ST"], int):
+                    minute = sc["ST"]
+                elif "T" in match and isinstance(match["T"], int):
+                    minute = match["T"] // 60
+
+                # --- Statut ---
+                tn = match.get("TN", "").lower()
+                tns = match.get("TNS", "").lower()
                 tt = match.get("SC", {}).get("TT")
-
-                if isinstance(minute, int) and minute > 0:
-                    status = f"En cours ({minute}′)"
+                statut = "À venir"
+                is_live = False
+                is_finished = False
+                is_upcoming = False
+                if (minute is not None and minute > 0) or (score1 > 0 or score2 > 0):
+                    statut = f"En cours ({minute}′)" if minute else "En cours"
                     is_live = True
-                    is_finished = False
-                    is_upcoming = False
-                elif tt == 3 or scores_exist:
-                    status = "Terminé"
+                if ("terminé" in tn or "terminé" in tns) or (tt == 3):
+                    statut = "Terminé"
                     is_live = False
                     is_finished = True
-                    is_upcoming = False
-                else:
-                    status = "À venir"
-                    is_live = False
-                    is_finished = False
+                if statut == "À venir":
                     is_upcoming = True
 
                 if selected_sport and sport != selected_sport:
@@ -72,21 +84,25 @@ def home():
                 match_ts = match.get("S", 0)
                 match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
 
+                # --- Cotes ---
                 odds_data = []
-                debug_markets = match.get("Markets", [])
-                if not debug_markets:
-                    print(f"Aucun marché pour le match {team1} vs {team2}")
-                for market in debug_markets:
-                    if market.get("G") == 1:
-                        for o in market.get("E", []):
-                            t = o.get("T")
-                            cote = o.get("C")
-                            if t in [1, 2, 3] and cote is not None:
-                                odds_data.append({
-                                    "type": {1: "1", 2: "2", 3: "X"}.get(t),
-                                    "cote": cote
-                                })
-
+                # 1. Chercher dans E (G=1)
+                for o in match.get("E", []):
+                    if o.get("G") == 1 and o.get("T") in [1, 2, 3] and o.get("C") is not None:
+                        odds_data.append({
+                            "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
+                            "cote": o.get("C")
+                        })
+                # 2. Sinon, chercher dans AE
+                if not odds_data:
+                    for ae in match.get("AE", []):
+                        if ae.get("G") == 1:
+                            for o in ae.get("ME", []):
+                                if o.get("T") in [1, 2, 3] and o.get("C") is not None:
+                                    odds_data.append({
+                                        "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
+                                        "cote": o.get("C")
+                                    })
                 if not odds_data:
                     formatted_odds = ["Pas de cotes disponibles"]
                 else:
@@ -101,9 +117,10 @@ def home():
                         "X": "Match nul"
                     }.get(best["type"], "–")
 
-                meteo_data = match.get("MIS", [{}]*10)
-                temp = meteo_data[2].get("V", "–")
-                humid = meteo_data[8].get("V", "–")
+                # --- Météo ---
+                meteo_data = match.get("MIS", [])
+                temp = next((item["V"] for item in meteo_data if item.get("K") == 9), "–")
+                humid = next((item["V"] for item in meteo_data if item.get("K") == 27), "–")
 
                 data.append({
                     "team1": team1,
@@ -112,22 +129,35 @@ def home():
                     "score2": score2,
                     "league": league,
                     "sport": sport,
-                    "status": status,
+                    "status": statut,
                     "datetime": match_time,
                     "temp": temp,
                     "humid": humid,
                     "odds": formatted_odds,
                     "prediction": prediction
                 })
-            except:
+            except Exception as e:
+                print(f"Erreur lors du traitement d'un match: {e}")
                 continue
 
-        return render_template_string(TEMPLATE, data=data,
+        # --- Pagination ---
+        try:
+            page = int(request.args.get('page', 1))
+        except:
+            page = 1
+        per_page = 20
+        total = len(data)
+        total_pages = (total + per_page - 1) // per_page
+        data_paginated = data[(page-1)*per_page:page*per_page]
+
+        return render_template_string(TEMPLATE, data=data_paginated,
             sports=sorted(sports_detected),
             leagues=sorted(leagues_detected),
             selected_sport=selected_sport or "Tous",
             selected_league=selected_league or "Toutes",
-            selected_status=selected_status or "Tous"
+            selected_status=selected_status or "Tous",
+            page=page,
+            total_pages=total_pages
         )
 
     except Exception as e:
@@ -151,6 +181,7 @@ def detect_sport(league_name):
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Matchs en direct</title>
     <style>
         body { font-family: Arial; padding: 20px; background: #f4f4f4; }
@@ -161,8 +192,46 @@ TEMPLATE = """<!DOCTYPE html>
         th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
         th { background: #2c3e50; color: white; }
         tr:nth-child(even) { background-color: #f9f9f9; }
+        .pagination { text-align: center; margin: 20px 0; }
+        .pagination button { padding: 8px 16px; margin: 0 4px; font-size: 16px; border: none; background: #2c3e50; color: white; border-radius: 4px; cursor: pointer; }
+        .pagination button:disabled { background: #ccc; cursor: not-allowed; }
+        /* Responsive */
+        @media (max-width: 800px) {
+            table, thead, tbody, th, td, tr { display: block; }
+            th { position: absolute; left: -9999px; top: -9999px; }
+            tr { margin-bottom: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 6px #ccc; }
+            td { border: none; border-bottom: 1px solid #eee; position: relative; padding-left: 50%; min-height: 40px; }
+            td:before { position: absolute; top: 10px; left: 10px; width: 45%; white-space: nowrap; font-weight: bold; }
+            td:nth-of-type(1):before { content: 'Équipe 1'; }
+            td:nth-of-type(2):before { content: 'Score 1'; }
+            td:nth-of-type(3):before { content: 'Score 2'; }
+            td:nth-of-type(4):before { content: 'Équipe 2'; }
+            td:nth-of-type(5):before { content: 'Sport'; }
+            td:nth-of-type(6):before { content: 'Ligue'; }
+            td:nth-of-type(7):before { content: 'Statut'; }
+            td:nth-of-type(8):before { content: 'Date & Heure'; }
+            td:nth-of-type(9):before { content: 'Température'; }
+            td:nth-of-type(10):before { content: 'Humidité'; }
+            td:nth-of-type(11):before { content: 'Cotes'; }
+            td:nth-of-type(12):before { content: 'Prédiction'; }
+        }
+        /* Loader */
+        #loader { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center; }
+        #loader .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #2c3e50; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var forms = document.querySelectorAll('form');
+            forms.forEach(function(form) {
+                form.addEventListener('submit', function() {
+                    document.getElementById('loader').style.display = 'flex';
+                });
+            });
+        });
+    </script>
 </head><body>
+    <div id="loader"><div class="spinner"></div></div>
     <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
 
     <form method="get">
@@ -191,6 +260,22 @@ TEMPLATE = """<!DOCTYPE html>
             </select>
         </label>
     </form>
+
+    <div class="pagination">
+        <form method="get" style="display:inline;">
+            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+            <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %}>Page précédente</button>
+        </form>
+        <span>Page {{ page }} / {{ total_pages }}</span>
+        <form method="get" style="display:inline;">
+            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+            <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %}>Page suivante</button>
+        </form>
+    </div>
 
     <table>
         <tr>
