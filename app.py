@@ -1104,16 +1104,19 @@ def stats_historique():
         l = 40
         filled = int((n/total)*l) if total else 0
         return '█'*filled + '░'*(l-filled)
+    bar_v1 = bar(v1, total)
+    bar_nul = bar(nul, total)
+    bar_v2 = bar(v2, total)
     return render_template_string('''<html><body style="font-family:Arial;padding:30px;">
     <h2>Répartition des résultats dans l'historique</h2>
     <table border=1 cellpadding=6><tr><th>Résultat</th><th>Nombre</th><th>Graphique</th></tr>
-    <tr><td>Victoire équipe 1</td><td>{{v1}}</td><td><pre>{{bar(v1, total)}}</pre></td></tr>
-    <tr><td>Nul</td><td>{{nul}}</td><td><pre>{{bar(nul, total)}}</pre></td></tr>
-    <tr><td>Victoire équipe 2</td><td>{{v2}}</td><td><pre>{{bar(v2, total)}}</pre></td></tr>
+    <tr><td>Victoire équipe 1</td><td>{{v1}}</td><td><pre>{{bar_v1}}</pre></td></tr>
+    <tr><td>Nul</td><td>{{nul}}</td><td><pre>{{bar_nul}}</pre></td></tr>
+    <tr><td>Victoire équipe 2</td><td>{{v2}}</td><td><pre>{{bar_v2}}</pre></td></tr>
     </table>
     <p>Total de matchs : <b>{{total}}</b></p>
     <a href="/">Retour à l'accueil</a>
-    </body></html>''', v1=v1, nul=nul, v2=v2, total=total, bar=bar)
+    </body></html>''', v1=v1, nul=nul, v2=v2, total=total, bar_v1=bar_v1, bar_nul=bar_nul, bar_v2=bar_v2)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
