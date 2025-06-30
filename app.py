@@ -308,7 +308,58 @@ def match_details(match_id):
                                 "cote": o.get("C")
                             })
         halftime_prediction, halftime_probs = get_best_prediction(halftime_odds_data, team1, team2)
-        # HTML avec graphiques Chart.js CDN + timeline + historique + partage
+        # --- Lecture de l'historique pour la forme récente ---
+        def get_forme(equipe):
+            vic, nul, defaite = 0, 0, 0
+            total = 0
+            derniers = []
+            try:
+                with open('historique_matchs.csv', newline='', encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        if row['equipe1'] == equipe or row['equipe2'] == equipe:
+                            s1 = row['score1']
+                            s2 = row['score2']
+                            try:
+                                s1 = int(s1)
+                                s2 = int(s2)
+                            except:
+                                continue
+                            if row['equipe1'] == equipe:
+                                if s1 > s2:
+                                    vic += 1
+                                    derniers.append('V')
+                                elif s1 == s2:
+                                    nul += 1
+                                    derniers.append('N')
+                                else:
+                                    defaite += 1
+                                    derniers.append('D')
+                            else:
+                                if s2 > s1:
+                                    vic += 1
+                                    derniers.append('V')
+                                elif s2 == s1:
+                                    nul += 1
+                                    derniers.append('N')
+                                else:
+                                    defaite += 1
+                                    derniers.append('D')
+                            total += 1
+                            if len(derniers) >= 5:
+                                break
+            except:
+                pass
+            return {
+                'vic': vic, 'nul': nul, 'defaite': defaite, 'total': total,
+                'derniers': derniers[:5],
+                'pct_vic': f"{(vic/total*100):.0f}%" if total else "–",
+                'pct_nul': f"{(nul/total*100):.0f}%" if total else "–",
+                'pct_defaite': f"{(defaite/total*100):.0f}%" if total else "–"
+            }
+        forme1 = get_forme(team1)
+        forme2 = get_forme(team2)
+        # HTML avec graphiques Chart.js CDN + timeline + historique + partage + forme récente
         return f'''
         <!DOCTYPE html>
         <html><head>
@@ -327,6 +378,7 @@ def match_details(match_id):
                 .timeline-chart {{ margin-top: 30px; }}
                 .history-block {{ margin-top: 20px; background: #f9f9f9; border-radius: 8px; padding: 10px; }}
                 .share-btn {{ background: #2980b9; color: #fff; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; margin-top: 10px; }}
+                .forme-block {{ margin-top: 20px; background: #eafaf1; border-radius: 8px; padding: 10px; }}
             </style>
         </head><body>
             <div class="container">
@@ -338,6 +390,16 @@ def match_details(match_id):
                 <p><b>Prédiction mi-temps :</b> {halftime_prediction}<span class='probs'> | {' | '.join([f"{p[0]}: {p[1]*100:.1f}% (cote {p[2]})" for p in [(p['type'], float(p['prob'][:-1])/100, p['cote']) for p in halftime_probs]])}</span></p>
                 <p><b>Cotes mi-temps :</b> {' | '.join([f"{od['type']}: {od['cote']}" for od in halftime_odds_data]) if halftime_odds_data else 'Pas de cotes mi-temps'}</p>
                 <p><b>Explication :</b> {explication}</p>
+                <div class="forme-block">
+                    <b>Forme récente {team1} :</b> {' '.join(forme1['derniers']) if forme1['derniers'] else '–'}
+                    <span style="color:#27ae60;">{forme1['pct_vic']} V</span> /
+                    <span style="color:#f39c12;">{forme1['pct_nul']} N</span> /
+                    <span style="color:#c0392b;">{forme1['pct_defaite']} D</span><br>
+                    <b>Forme récente {team2} :</b> {' '.join(forme2['derniers']) if forme2['derniers'] else '–'}
+                    <span style="color:#27ae60;">{forme2['pct_vic']} V</span> /
+                    <span style="color:#f39c12;">{forme2['pct_nul']} N</span> /
+                    <span style="color:#c0392b;">{forme2['pct_defaite']} D</span>
+                </div>
                 <h3>Statistiques principales</h3>
                 <table class="stats-table">
                     <tr><th>Statistique</th><th>{team1}</th><th>{team2}</th></tr>
@@ -439,6 +501,55 @@ def export_csv():
         return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', as_attachment=True, download_name='matchs.csv')
     except Exception as e:
         return f"Erreur lors de l'export CSV : {e}"
+
+@app.route('/historique')
+def historique():
+    rows = []
+    try:
+        with open('historique_matchs.csv', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                rows.append(row)
+    except Exception as e:
+        return render_template_string('<div style="padding:40px;text-align:center;color:#c0392b;font-size:22px;">Erreur lors de la lecture de l\'historique : {}</div>'.format(e))
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html><head>
+        <meta charset="utf-8">
+        <title>Historique des matchs terminés</title>
+        <style>
+            body { font-family: Arial; background: #f4f4f4; padding: 20px; }
+            .container { max-width: 900px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px #ccc; padding: 20px; }
+            h2 { text-align: center; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+            th { background: #27ae60; color: #fff; }
+            tr:nth-child(even) { background: #f9f9f9; }
+            .back-btn { margin-bottom: 20px; display: inline-block; }
+        </style>
+    </head><body>
+        <div class="container">
+            <a href="/" class="back-btn">&larr; Retour à la liste</a>
+            <h2>Historique des matchs terminés</h2>
+            <table>
+                <tr>
+                    <th>Date & Heure</th><th>Équipe 1</th><th>Score</th><th>Équipe 2</th><th>Sport</th><th>Ligue</th><th>Statut</th>
+                </tr>
+                {% for r in rows %}
+                <tr>
+                    <td>{{r['date_heure']}}</td>
+                    <td>{{r['equipe1']}}</td>
+                    <td>{{r['score1']}} - {{r['score2']}}</td>
+                    <td>{{r['equipe2']}}</td>
+                    <td>{{r['sport']}}</td>
+                    <td>{{r['ligue']}}</td>
+                    <td>{{r['statut']}}</td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </body></html>
+    ''', rows=rows)
 
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
@@ -559,6 +670,7 @@ TEMPLATE = """<!DOCTYPE html>
     </div>
     <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;">
         <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
+        <a href="/historique" style="background:#2980b9;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;margin-left:10px;">Historique</a>
     </div>
     <table>
         <tr>
