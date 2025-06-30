@@ -995,6 +995,29 @@ def import_historique():
     <a href="/">Retour à l'accueil</a>
     </body></html>''', msg=msg)
 
+@app.route('/stats_historique')
+def stats_historique():
+    matchs = Match.query.all()
+    total = len(matchs)
+    v1 = sum(1 for m in matchs if m.score1 and m.score2 and m.score1 > m.score2)
+    nul = sum(1 for m in matchs if m.score1 == m.score2 and m.score1 != '' and m.score2 != '')
+    v2 = sum(1 for m in matchs if m.score1 and m.score2 and m.score1 < m.score2)
+    def bar(n, total):
+        l = 40
+        filled = int((n/total)*l) if total else 0
+        return '█'*filled + '░'*(l-filled)
+    return render_template_string('''<html><body style="font-family:Arial;padding:30px;">
+    <h2>Répartition des résultats dans l'historique</h2>
+    <table border=1 cellpadding=6><tr><th>Résultat</th><th>Nombre</th><th>Graphique</th></tr>
+    <tr><td>Victoire équipe 1</td><td>{{v1}}</td><td><pre>{{bar(v1, total)}}</pre></td></tr>
+    <tr><td>Nul</td><td>{{nul}}</td><td><pre>{{bar(nul, total)}}</pre></td></tr>
+    <tr><td>Victoire équipe 2</td><td>{{v2}}</td><td><pre>{{bar(v2, total)}}</pre></td></tr>
+    </table>
+    <p>Total de matchs : <b>{{total}}</b></p>
+    <a href="/">Retour à l'accueil</a>
+    </body></html>''
+    , v1=v1, nul=nul, v2=v2, total=total, bar=bar)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
