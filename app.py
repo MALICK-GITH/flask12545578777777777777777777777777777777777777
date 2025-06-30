@@ -716,158 +716,174 @@ def extract_bet_options(match):
             })
     return options
 
+def bet_option_label(opt, team1, team2):
+    g, t, p = opt.get('groupe'), opt.get('type'), opt.get('param')
+    # 1N2
+    if g == 1:
+        if t == 1:
+            return f"Victoire {team1}"
+        elif t == 2:
+            return f"Victoire {team2}"
+        elif t == 3:
+            return "Match nul"
+    # Mi-temps
+    if g == 8:
+        if t == 4:
+            return f"Mi-temps : {team1}"
+        elif t == 5:
+            return "Mi-temps : Nul"
+        elif t == 6:
+            return f"Mi-temps : {team2}"
+    # Handicap
+    if g == 2:
+        if t == 7:
+            return f"Handicap {team1} {p:+}"
+        elif t == 8:
+            return f"Handicap {team2} {p:+}"
+    # Over/Under
+    if g == 17:
+        if t == 9:
+            return f"Plus de {p} buts"
+        elif t == 10:
+            return f"Moins de {p} buts"
+    # Autres (fallback)
+    return opt.get('label')
+
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Matchs en direct</title>
     <style>
-        body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-        h2 { text-align: center; }
-        form { text-align: center; margin-bottom: 20px; }
-        select { padding: 8px; margin: 0 10px; font-size: 14px; }
-        table { border-collapse: collapse; margin: auto; width: 98%; background: white; }
-        th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
-        th { background: #2c3e50; color: white; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .pagination { text-align: center; margin: 20px 0; }
-        .pagination button { padding: 8px 16px; margin: 0 4px; font-size: 16px; border: none; background: #2c3e50; color: white; border-radius: 4px; cursor: pointer; }
-        .pagination button:disabled { background: #ccc; cursor: not-allowed; }
-        .probs { font-size: 12px; color: #555; margin-top: 2px; }
-        .prob-high { color: #27ae60; font-weight: bold; }
-        .prob-mid { color: #f39c12; font-weight: bold; }
-        .prob-low { color: #c0392b; font-weight: bold; }
-        .team-logo { width: 28px; height: 28px; vertical-align: middle; border-radius: 50%; margin-right: 4px; }
-        .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; }
-        .status-live { background: #27ae60; }
-        .status-finished { background: #7f8c8d; }
-        .status-upcoming { background: #2980b9; }
-        /* Responsive */
-        @media (max-width: 800px) {
-            table, thead, tbody, th, td, tr { display: block; }
-            th { position: absolute; left: -9999px; top: -9999px; }
-            tr { margin-bottom: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 6px #ccc; }
-            td { border: none; border-bottom: 1px solid #eee; position: relative; padding-left: 50%; min-height: 40px; }
-            td:before { position: absolute; top: 10px; left: 10px; width: 45%; white-space: nowrap; font-weight: bold; }
-            td:nth-of-type(1):before { content: 'Équipe 1'; }
-            td:nth-of-type(2):before { content: 'Score 1'; }
-            td:nth-of-type(3):before { content: 'Score 2'; }
-            td:nth-of-type(4):before { content: 'Équipe 2'; }
-            td:nth-of-type(5):before { content: 'Sport'; }
-            td:nth-of-type(6):before { content: 'Ligue'; }
-            td:nth-of-type(7):before { content: 'Statut'; }
-            td:nth-of-type(8):before { content: 'Date & Heure'; }
-            td:nth-of-type(9):before { content: 'Température'; }
-            td:nth-of-type(10):before { content: 'Humidité'; }
-            td:nth-of-type(11):before { content: 'Cotes'; }
-            td:nth-of-type(12):before { content: 'Prédiction'; }
-            td:nth-of-type(13):before { content: 'Cotes mi-temps'; }
-            td:nth-of-type(14):before { content: 'Prédiction mi-temps'; }
+        body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f8f8f8; color:#222; }
+        .container { max-width: 1200px; margin: auto; padding: 10px; }
+        table { width: 100%; border-collapse: collapse; font-size: 15px; }
+        th, td { padding: 7px 4px; text-align: center; }
+        th { background: #222; color: #fff; }
+        tr:nth-child(even) { background: #f2f2f2; }
+        tr:hover { background: #e0e0e0; }
+        .team-logo { height: 22px; vertical-align: middle; margin-right: 4px; }
+        .status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:3px; }
+        .status-live { background:#1ec700; }
+        .status-finished { background:#e74c3c; }
+        .status-upcoming { background:#aaa; }
+        @media (max-width: 700px) {
+          .container { padding: 2px; }
+          table, th, td { font-size: 12px; }
+          th, td { padding: 4px 1px; }
+          .team-logo { height: 16px; }
         }
-        /* Loader */
-        #loader { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center; }
-        #loader .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #2c3e50; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        /* Mode sombre */
+        body.dark { background: #181818; color: #eee; }
+        body.dark th { background: #111; color: #fff; }
+        body.dark tr:nth-child(even) { background: #232323; }
+        body.dark tr:hover { background: #333; }
+        body.dark .status-dot { filter: brightness(1.2); }
+        footer { margin-top:40px;text-align:center;font-size:15px;color:#888; }
     </style>
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            var forms = document.querySelectorAll('form');
-            forms.forEach(function(form) {
-                form.addEventListener('submit', function() {
-                    document.getElementById('loader').style.display = 'flex';
-                });
-            });
-        });
+    function toggleDark() {
+      document.body.classList.toggle('dark');
+      localStorage.setItem('darkmode', document.body.classList.contains('dark'));
+    }
+    window.onload = function() {
+      if(localStorage.getItem('darkmode')==='true') document.body.classList.add('dark');
+    }
     </script>
 </head><body>
-    <div id="loader"><div class="spinner"></div></div>
-    <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
-    <div style="text-align:center; color:#888; font-size:13px; margin-bottom:10px;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
-    <form method="get">
-        <label>Sport :
-            <select name="sport" onchange="this.form.submit()">
-                <option value="">Tous</option>
-                {% for s in sports %}
-                    <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>Ligue :
-            <select name="league" onchange="this.form.submit()">
-                <option value="">Toutes</option>
-                {% for l in leagues %}
-                    <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>Statut :
-            <select name="status" onchange="this.form.submit()">
-                <option value="">Tous</option>
-                <option value="live" {% if selected_status == "live" %}selected{% endif %}>En direct</option>
-                <option value="upcoming" {% if selected_status == "upcoming" %}selected{% endif %}>À venir</option>
-                <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
-            </select>
-        </label>
-        <label>Trier par :
-            <select name="sort" onchange="this.form.submit()">
-                <option value="datetime" {% if request.args.get('sort', 'datetime') == 'datetime' %}selected{% endif %}>Heure</option>
-                <option value="prob" {% if request.args.get('sort') == 'prob' %}selected{% endif %}>Probabilité</option>
-                <option value="cote" {% if request.args.get('sort') == 'cote' %}selected{% endif %}>Cote</option>
-            </select>
-        </label>
-    </form>
-    <div class="pagination">
-        <form method="get" style="display:inline;">
-            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
-            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
-            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
-            <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
-            <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %}>Page précédente</button>
-        </form>
-        <span>Page {{ page }} / {{ total_pages }}</span>
-        <form method="get" style="display:inline;">
-            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
-            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
-            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
-            <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
-            <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %}>Page suivante</button>
-        </form>
-    </div>
-    <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;">
-        <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
-        <a href="/historique" style="background:#2980b9;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;margin-left:10px;">Historique</a>
-    </div>
-    <table>
-        <tr>
-            <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
-            <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
-            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Cotes mi-temps</th><th>Prédiction mi-temps</th><th>Détails</th>
-        </tr>
-        {% for m in data %}
-        <tr>
-            <td>{% if m.team1 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_1.png' onerror="this.style.display='none'">{% endif %}{{m.team1}}</td>
-            <td>{{m.score1}}</td><td>{{m.score2}}</td>
-            <td>{% if m.team2 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_2.png' onerror="this.style.display='none'">{% endif %}{{m.team2}}</td>
-            <td>{{m.sport}}</td><td>{{m.league}}</td>
-            <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
-            <td>{{m.datetime}}</td>
-            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td>
-            <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
-            <td>{{m.halftime_odds|join(" | ")}}</td>
-            <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
-            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
-                <details style='margin-top:5px;'>
-                  <summary style='cursor:pointer;font-size:13px;color:#2980b9;'>Options de paris</summary>
-                  <ul style='text-align:left;font-size:13px;'>
-                    {% for opt in m.bet_options %}
-                      <li>{{opt.label}} : <b>{{opt.cote}}</b></li>
+    <div style="text-align:right;padding:7px 10px;"><button onclick="toggleDark()" style="padding:5px 12px;border-radius:6px;border:1px solid #aaa;background:#fff;cursor:pointer;">🌓 Mode sombre</button></div>
+    <div class="container">
+        <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
+        <div style="text-align:center; color:#888; font-size:13px; margin-bottom:10px;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
+        <form method="get">
+            <label>Sport :
+                <select name="sport" onchange="this.form.submit()">
+                    <option value="">Tous</option>
+                    {% for s in sports %}
+                        <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
                     {% endfor %}
-                  </ul>
-                </details>
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
+                </select>
+            </label>
+            <label>Ligue :
+                <select name="league" onchange="this.form.submit()">
+                    <option value="">Toutes</option>
+                    {% for l in leagues %}
+                        <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>Statut :
+                <select name="status" onchange="this.form.submit()">
+                    <option value="">Tous</option>
+                    <option value="live" {% if selected_status == "live" %}selected{% endif %}>En direct</option>
+                    <option value="upcoming" {% if selected_status == "upcoming" %}selected{% endif %}>À venir</option>
+                    <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
+                </select>
+            </label>
+            <label>Trier par :
+                <select name="sort" onchange="this.form.submit()">
+                    <option value="datetime" {% if request.args.get('sort', 'datetime') == 'datetime' %}selected{% endif %}>Heure</option>
+                    <option value="prob" {% if request.args.get('sort') == 'prob' %}selected{% endif %}>Probabilité</option>
+                    <option value="cote" {% if request.args.get('sort') == 'cote' %}selected{% endif %}>Cote</option>
+                </select>
+            </label>
+        </form>
+        <div class="pagination">
+            <form method="get" style="display:inline;">
+                <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+                <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+                <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+                <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
+                <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %}>Page précédente</button>
+            </form>
+            <span>Page {{ page }} / {{ total_pages }}</span>
+            <form method="get" style="display:inline;">
+                <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+                <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+                <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+                <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
+                <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %}>Page suivante</button>
+            </form>
+        </div>
+        <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;">
+            <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
+            <a href="/historique" style="background:#2980b9;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;margin-left:10px;">Historique</a>
+        </div>
+        <table>
+            <tr>
+                <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
+                <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
+                <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Cotes mi-temps</th><th>Prédiction mi-temps</th><th>Détails</th>
+            </tr>
+            {% for m in data %}
+            <tr>
+                <td>{% if m.team1 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_1.png' onerror="this.style.display='none'">{% endif %}{{ get_flag(m.team1) }} {{m.team1}}</td>
+                <td>{{m.score1}}</td><td>{{m.score2}}</td>
+                <td>{% if m.team2 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_2.png' onerror="this.style.display='none'">{% endif %}{{ get_flag(m.team2) }} {{m.team2}}</td>
+                <td>{{m.sport}}</td><td>{{m.league}}</td>
+                <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
+                <td>{{m.datetime}}</td>
+                <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td>
+                <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
+                <td>{{m.halftime_odds|join(" | ")}}</td>
+                <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
+                <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
+                    <details style='margin-top:5px;'>
+                      <summary style='cursor:pointer;font-size:13px;color:#2980b9;'>Options de paris</summary>
+                      <ul style='text-align:left;font-size:13px;'>
+                        {% for opt in m.bet_options %}
+                          <li>{{ bet_option_label(opt, m.team1, m.team2) }} : <b>{{opt.cote}}</b></li>
+                        {% endfor %}
+                      </ul>
+                    </details>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+        <footer>
+            Créateur : <b>SOLITAIRE HACK</b> | Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a> | Canal : <a href="https://t.me/SOLITAIREHACK" target="_blank">https://t.me/SOLITAIREHACK</a>
+        </footer>
+    </div>
     <script>
       setInterval(function() {
         window.location.reload();
@@ -931,6 +947,53 @@ with app.app_context():
     if os.path.exists('historique_matchs.xlsx'):
         import_matches_from_excel('historique_matchs.xlsx')
     train_ml_model()
+
+def get_flag(team):
+    # Mapping simple pour quelques pays/équipes connus, à étendre selon besoin
+    flags = {
+        'france': '🇫🇷', 'espagne': '🇪🇸', 'italie': '🇮🇹', 'allemagne': '🇩🇪', 'angleterre': '🇬🇧',
+        'brazil': '🇧🇷', 'argentine': '🇦🇷', 'portugal': '🇵🇹', 'maroc': '🇲🇦', 'sénégal': '🇸🇳',
+        'côte d'ivoire': '🇨🇮', 'cote d'ivoire': '🇨🇮', 'nigeria': '🇳🇬', 'usa': '🇺🇸', 'belgique': '🇧🇪',
+        'tunisie': '🇹🇳', 'algérie': '🇩🇿', 'pays-bas': '🇳🇱', 'pays bas': '🇳🇱', 'suisse': '🇨🇭',
+        'turquie': '🇹🇷', 'croatie': '🇭🇷', 'pologne': '🇵🇱', 'suède': '🇸🇪', 'norvège': '🇳🇴',
+        'japon': '🇯🇵', 'corée': '🇰🇷', 'chine': '🇨🇳', 'canada': '🇨🇦', 'mexique': '🇲🇽',
+    }
+    t = team.lower() if team else ''
+    for k, v in flags.items():
+        if k in t:
+            return v
+    return ''
+
+@app.route('/import_historique', methods=['GET', 'POST'])
+def import_historique():
+    msg = ''
+    if request.method == 'POST':
+        f = request.files.get('file')
+        if f:
+            filename = f.filename.lower()
+            if filename.endswith('.csv'):
+                path = 'import_temp.csv'
+                f.save(path)
+                import_matches_from_csv(path)
+                os.remove(path)
+                msg = 'Import CSV réussi !'
+            elif filename.endswith('.xlsx'):
+                path = 'import_temp.xlsx'
+                f.save(path)
+                import_matches_from_excel(path)
+                os.remove(path)
+                msg = 'Import Excel réussi !'
+            else:
+                msg = 'Format non supporté.'
+    return render_template_string('''<html><body style="font-family:Arial;padding:30px;">
+    <h2>Importer un historique de matchs</h2>
+    <form method="post" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".csv,.xlsx" required>
+      <button type="submit">Importer</button>
+    </form>
+    <p style="color:green;">{{msg}}</p>
+    <a href="/">Retour à l'accueil</a>
+    </body></html>''', msg=msg)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
