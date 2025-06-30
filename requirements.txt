@@ -1,3 +1,5 @@
 Flask
 requests 
 flask_sqlalchemy 
+scikit-learn
+pandas 
