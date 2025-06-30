@@ -6,6 +6,9 @@ from operator import itemgetter
 import io
 import csv
 from flask_sqlalchemy import SQLAlchemy
+import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
+import joblib
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///matchs.db'
@@ -22,6 +25,8 @@ class Match(db.Model):
     ligue = db.Column(db.String)
     date_heure = db.Column(db.String)
     statut = db.Column(db.String)
+    prediction = db.Column(db.String)  # Prédiction principale
+    halftime_prediction = db.Column(db.String)  # Prédiction mi-temps
 
 # Migration automatique du CSV vers la base SQL (à faire une seule fois)
 def migrate_csv_to_sql():
@@ -60,6 +65,56 @@ def save_matches_sql(matches):
             match = Match(**m)
             db.session.add(match)
     db.session.commit()
+
+# Fonction pour entraîner le modèle ML à partir de la base SQL
+def train_ml_model():
+    matchs = Match.query.all()
+    if not matchs:
+        return None
+    data = []
+    for m in matchs:
+        try:
+            s1 = int(m.score1)
+            s2 = int(m.score2)
+        except:
+            s1, s2 = 0, 0
+        data.append({
+            'equipe1': m.equipe1,
+            'equipe2': m.equipe2,
+            'score1': s1,
+            'score2': s2,
+            'resultat': 1 if s1 > s2 else (2 if s1 < s2 else 0)
+        })
+    df = pd.DataFrame(data)
+    if df.empty:
+        return None
+    df['equipe1_id'] = df['equipe1'].astype('category').cat.codes
+    df['equipe2_id'] = df['equipe2'].astype('category').cat.codes
+    X = df[['equipe1_id', 'equipe2_id', 'score1', 'score2']]
+    y = df['resultat']
+    clf = RandomForestClassifier()
+    clf.fit(X, y)
+    joblib.dump((clf, df['equipe1'].astype('category').cat.categories, df['equipe2'].astype('category').cat.categories), 'ml_model.joblib')
+    return clf
+
+# Fonction pour prédire avec le modèle ML
+def predict_ml(equipe1, equipe2, score1=0, score2=0):
+    if not os.path.exists('ml_model.joblib'):
+        return "Pas de modèle ML"
+    clf, cat1, cat2 = joblib.load('ml_model.joblib')
+    try:
+        equipe1_id = list(cat1).index(equipe1)
+        equipe2_id = list(cat2).index(equipe2)
+    except ValueError:
+        return "Pas assez d'historique pour ces équipes"
+    X = [[equipe1_id, equipe2_id, score1, score2]]
+    pred = clf.predict(X)[0]
+    if pred == 1:
+        return f"Victoire {equipe1} (ML)"
+    elif pred == 2:
+        return f"Victoire {equipe2} (ML)"
+    else:
+        return "Match nul (ML)"
 
 @app.route('/')
 def home():
@@ -211,6 +266,29 @@ def home():
 
                 bet_options = extract_bet_options(match)
 
+                # Recherche du match en base
+                id_match = str(match.get("I"))
+                match_db = Match.query.filter_by(id_match=id_match).first() if id_match else None
+                # Prédiction principale
+                if match_db and match_db.prediction:
+                    prediction = match_db.prediction
+                else:
+                    prediction, all_probs = get_best_prediction(odds_data, team1, team2)
+                    if match_db:
+                        match_db.prediction = prediction
+                        db.session.commit()
+                # Prédiction mi-temps
+                if match_db and match_db.halftime_prediction:
+                    halftime_prediction = match_db.halftime_prediction
+                else:
+                    halftime_prediction, halftime_probs = get_best_prediction(halftime_odds_data, team1, team2)
+                    if match_db:
+                        match_db.halftime_prediction = halftime_prediction
+                        db.session.commit()
+
+                # Prédiction ML
+                prediction_ml = predict_ml(team1, team2, score1, score2)
+
                 data.append({
                     "team1": team1,
                     "team2": team2,
@@ -229,7 +307,8 @@ def home():
                     "halftime_prediction": halftime_prediction,
                     "halftime_probs": halftime_probs,
                     "id": match.get("I", None),
-                    "bet_options": bet_options
+                    "bet_options": bet_options,
+                    "prediction_ml": prediction_ml
                 })
             except Exception as e:
                 print(f"Erreur lors du traitement d'un match: {e}")
@@ -773,7 +852,7 @@ TEMPLATE = """<!DOCTYPE html>
             <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
             <td>{{m.datetime}}</td>
             <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td>
-            <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
+            <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
             <td>{{m.halftime_odds|join(" | ")}}</td>
             <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
             <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
@@ -795,6 +874,63 @@ TEMPLATE = """<!DOCTYPE html>
       }, 30000); // 30 secondes
     </script>
 </body></html>"""
+
+def import_matches_from_csv(csv_path):
+    import csv
+    with open(csv_path, newline='', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if not Match.query.filter_by(id_match=row['id_match']).first():
+                m = Match(
+                    id_match=row['id_match'],
+                    equipe1=row['equipe1'],
+                    score1=row['score1'],
+                    score2=row['score2'],
+                    equipe2=row['equipe2'],
+                    sport=row.get('sport', ''),
+                    ligue=row.get('ligue', ''),
+                    date_heure=row.get('date_heure', ''),
+                    statut=row.get('statut', ''),
+                    prediction=row.get('prediction', None),
+                    halftime_prediction=row.get('halftime_prediction', None)
+                )
+                db.session.add(m)
+        db.session.commit()
+    print('Import terminé.')
+
+def import_matches_from_excel(xlsx_path):
+    import pandas as pd
+    df = pd.read_excel(xlsx_path)
+    for _, row in df.iterrows():
+        id_match = str(row.get('id_match', ''))
+        if not id_match or Match.query.filter_by(id_match=id_match).first():
+            continue
+        m = Match(
+            id_match=id_match,
+            equipe1=row.get('equipe1', ''),
+            score1=str(row.get('score1', '')),
+            score2=str(row.get('score2', '')),
+            equipe2=row.get('equipe2', ''),
+            sport=row.get('sport', ''),
+            ligue=row.get('ligue', ''),
+            date_heure=row.get('date_heure', ''),
+            statut=row.get('statut', ''),
+            prediction=row.get('prediction', None),
+            halftime_prediction=row.get('halftime_prediction', None)
+        )
+        db.session.add(m)
+    db.session.commit()
+    print('Import Excel terminé.')
+
+# Appel automatique de l'import Excel au démarrage
+with app.app_context():
+    db.create_all()
+    migrate_csv_to_sql()
+    if os.path.exists('historique_matchs.csv'):
+        import_matches_from_csv('historique_matchs.csv')
+    if os.path.exists('historique_matchs.xlsx'):
+        import_matches_from_excel('historique_matchs.xlsx')
+    train_ml_model()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
