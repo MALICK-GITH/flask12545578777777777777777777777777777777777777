@@ -123,6 +123,22 @@ def home():
                     statut = "Terminé"
                     is_live = False
                     is_finished = True
+                    # Enregistrement automatique dans la base SQL si non déjà présent
+                    id_match = str(match.get("I"))
+                    if id_match and not Match.query.filter_by(id_match=id_match).first():
+                        nouveau = Match(
+                            id_match=id_match,
+                            equipe1=team1,
+                            score1=str(score1),
+                            score2=str(score2),
+                            equipe2=team2,
+                            sport=sport,
+                            ligue=league,
+                            date_heure=match_time,
+                            statut=statut
+                        )
+                        db.session.add(nouveau)
+                        db.session.commit()
                 if statut == "À venir":
                     is_upcoming = True
 
@@ -533,23 +549,13 @@ def get_best_prediction(odds_data, team1, team2):
 @app.route('/export_csv')
 def export_csv():
     try:
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
-        response = requests.get(api_url)
-        matches = response.json().get("Value", [])
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(["Equipe 1", "Score 1", "Score 2", "Equipe 2", "Sport", "Ligue", "Statut", "Date & Heure"])
-        for match in matches:
-            team1 = match.get("O1", "–")
-            team2 = match.get("O2", "–")
-            score1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
-            score2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
-            league = match.get("LE", "–")
-            sport = detect_sport(league)
-            statut = match.get("TN", "–")
-            match_ts = match.get("S", 0)
-            match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
-            writer.writerow([team1, score1, score2, team2, sport, league, statut, match_time])
+        for m in Match.query.order_by(Match.date_heure.desc()).all():
+            writer.writerow([
+                m.equipe1, m.score1, m.score2, m.equipe2, m.sport, m.ligue, m.statut, m.date_heure
+            ])
         output.seek(0)
         return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', as_attachment=True, download_name='matchs.csv')
     except Exception as e:
