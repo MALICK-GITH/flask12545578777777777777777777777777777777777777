@@ -1113,8 +1113,7 @@ def stats_historique():
     </table>
     <p>Total de matchs : <b>{{total}}</b></p>
     <a href="/">Retour à l'accueil</a>
-    </body></html>''
-    , v1=v1, nul=nul, v2=v2, total=total, bar=bar)
+    </body></html>''', v1=v1, nul=nul, v2=v2, total=total, bar=bar)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
