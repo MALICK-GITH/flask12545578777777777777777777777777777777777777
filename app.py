@@ -1,7 +1,10 @@
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, send_file, redirect, url_for
 import requests
 import os
 import datetime
+from operator import itemgetter
+import io
+import csv
 
 app = Flask(__name__)
 
@@ -12,7 +15,7 @@ def home():
         selected_league = request.args.get("league", "").strip()
         selected_status = request.args.get("status", "").strip()
 
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
 
@@ -108,15 +111,30 @@ def home():
                 else:
                     formatted_odds = [f"{od['type']}: {od['cote']}" for od in odds_data]
 
-                prediction = "–"
-                if odds_data:
-                    best = min(odds_data, key=lambda x: x["cote"])
-                    prediction = {
-                        "1": f"{team1} gagne",
-                        "2": f"{team2} gagne",
-                        "X": "Match nul"
-                    }.get(best["type"], "–")
-
+                # --- Prédiction avancée ---
+                prediction, all_probs = get_best_prediction(odds_data, team1, team2)
+                # --- Cotes mi-temps ---
+                halftime_odds_data = []
+                for o in match.get("E", []):
+                    if o.get("G") == 8 and o.get("T") in [1, 2, 3] and o.get("C") is not None:
+                        halftime_odds_data.append({
+                            "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
+                            "cote": o.get("C")
+                        })
+                if not halftime_odds_data:
+                    for ae in match.get("AE", []):
+                        if ae.get("G") == 8:
+                            for o in ae.get("ME", []):
+                                if o.get("T") in [1, 2, 3] and o.get("C") is not None:
+                                    halftime_odds_data.append({
+                                        "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
+                                        "cote": o.get("C")
+                                    })
+                if not halftime_odds_data:
+                    formatted_halftime_odds = ["Pas de cotes mi-temps"]
+                else:
+                    formatted_halftime_odds = [f"{od['type']}: {od['cote']}" for od in halftime_odds_data]
+                halftime_prediction, halftime_probs = get_best_prediction(halftime_odds_data, team1, team2)
                 # --- Météo ---
                 meteo_data = match.get("MIS", [])
                 temp = next((item["V"] for item in meteo_data if item.get("K") == 9), "–")
@@ -135,12 +153,24 @@ def home():
                     "humid": humid,
                     "odds": formatted_odds,
                     "prediction": prediction,
+                    "all_probs": all_probs,
+                    "halftime_odds": formatted_halftime_odds,
+                    "halftime_prediction": halftime_prediction,
+                    "halftime_probs": halftime_probs,
                     "id": match.get("I", None)
                 })
             except Exception as e:
                 print(f"Erreur lors du traitement d'un match: {e}")
                 continue
 
+        # --- Tri des matchs ---
+        sort_by = request.args.get('sort', 'datetime')
+        if sort_by == 'prob':
+            data.sort(key=lambda m: float(m['all_probs'][0]['prob'][:-1]) if m['all_probs'] else 0, reverse=True)
+        elif sort_by == 'cote':
+            data.sort(key=lambda m: float(m['odds'][0].split(': ')[1]) if m['odds'] and m['odds'][0] != 'Pas de cotes disponibles' else 9999)
+        else:
+            data.sort(key=lambda m: m['datetime'])
         # --- Pagination ---
         try:
             page = int(request.args.get('page', 1))
@@ -182,13 +212,12 @@ def detect_sport(league_name):
 @app.route('/match/<int:match_id>')
 def match_details(match_id):
     try:
-        # Récupérer les données de l'API (ou brute.json si besoin)
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
         match = next((m for m in matches if m.get("I") == match_id), None)
         if not match:
-            return f"Aucun match trouvé pour l'identifiant {match_id}"
+            return render_template_string('<div style="padding:40px;text-align:center;color:#c0392b;font-size:22px;">Aucun match trouvé pour cet identifiant.</div>')
         # Infos principales
         team1 = match.get("O1", "–")
         team2 = match.get("O2", "–")
@@ -214,6 +243,33 @@ def match_details(match_id):
                 s1 = stat.get("S1", "0")
                 s2 = stat.get("S2", "0")
                 stats.append({"nom": nom, "s1": s1, "s2": s2})
+        # Timeline score (si PS existe)
+        timeline = []
+        ps = match.get("SC", {}).get("PS", [])
+        if ps:
+            for period in ps:
+                label = period.get("Key", "?")
+                val = period.get("Value", {})
+                s1 = val.get("S1", 0)
+                s2 = val.get("S2", 0)
+                nf = val.get("NF", "?")
+                timeline.append({"label": nf, "s1": s1, "s2": s2})
+        # Historique équipes (3 derniers matchs)
+        team1_hist = []
+        team2_hist = []
+        for m in matches:
+            if m.get("O1") == team1 or m.get("O2") == team1:
+                if m.get("I") != match_id:
+                    s1 = m.get("SC", {}).get("FS", {}).get("S1", "–")
+                    s2 = m.get("SC", {}).get("FS", {}).get("S2", "–")
+                    team1_hist.append(f"{m.get('O1','?')} {s1} - {s2} {m.get('O2','?')}")
+            if m.get("O1") == team2 or m.get("O2") == team2:
+                if m.get("I") != match_id:
+                    s1 = m.get("SC", {}).get("FS", {}).get("S1", "–")
+                    s2 = m.get("SC", {}).get("FS", {}).get("S2", "–")
+                    team2_hist.append(f"{m.get('O1','?')} {s1} - {s2} {m.get('O2','?')}")
+        team1_hist = team1_hist[:3]
+        team2_hist = team2_hist[:3]
         # Explication prédiction (simple)
         explication = "La prédiction est basée sur les cotes et les statistiques principales (tirs, possession, etc.)."  # Peut être enrichi
         # Prédiction
@@ -233,15 +289,26 @@ def match_details(match_id):
                                 "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
                                 "cote": o.get("C")
                             })
-        prediction = "–"
-        if odds_data:
-            best = min(odds_data, key=lambda x: x["cote"])
-            prediction = {
-                "1": f"{team1} gagne",
-                "2": f"{team2} gagne",
-                "X": "Match nul"
-            }.get(best["type"], "–")
-        # HTML avec graphiques Chart.js CDN
+        prediction, all_probs = get_best_prediction(odds_data, team1, team2)
+        # --- Cotes mi-temps ---
+        halftime_odds_data = []
+        for o in match.get("E", []):
+            if o.get("G") == 8 and o.get("T") in [1, 2, 3] and o.get("C") is not None:
+                halftime_odds_data.append({
+                    "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
+                    "cote": o.get("C")
+                })
+        if not halftime_odds_data:
+            for ae in match.get("AE", []):
+                if ae.get("G") == 8:
+                    for o in ae.get("ME", []):
+                        if o.get("T") in [1, 2, 3] and o.get("C") is not None:
+                            halftime_odds_data.append({
+                                "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
+                                "cote": o.get("C")
+                            })
+        halftime_prediction, halftime_probs = get_best_prediction(halftime_odds_data, team1, team2)
+        # HTML avec graphiques Chart.js CDN + timeline + historique + partage
         return f'''
         <!DOCTYPE html>
         <html><head>
@@ -256,6 +323,10 @@ def match_details(match_id):
                 .stats-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
                 .stats-table th, .stats-table td {{ border: 1px solid #ccc; padding: 8px; text-align: center; }}
                 .back-btn {{ margin-bottom: 20px; display: inline-block; }}
+                .probs {{ font-size: 13px; color: #555; margin-top: 2px; }}
+                .timeline-chart {{ margin-top: 30px; }}
+                .history-block {{ margin-top: 20px; background: #f9f9f9; border-radius: 8px; padding: 10px; }}
+                .share-btn {{ background: #2980b9; color: #fff; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; margin-top: 10px; }}
             </style>
         </head><body>
             <div class="container">
@@ -263,7 +334,9 @@ def match_details(match_id):
                 <h2>{team1} vs {team2}</h2>
                 <p><b>Ligue :</b> {league} | <b>Sport :</b> {sport}</p>
                 <p><b>Score :</b> {score1} - {score2}</p>
-                <p><b>Prédiction du bot :</b> {prediction}</p>
+                <p><b>Prédiction du bot :</b> {prediction}<span class='probs'> | {' | '.join([f"{p[0]}: {p[1]*100:.1f}% (cote {p[2]})" for p in [(p['type'], float(p['prob'][:-1])/100, p['cote']) for p in all_probs]])}</span></p>
+                <p><b>Prédiction mi-temps :</b> {halftime_prediction}<span class='probs'> | {' | '.join([f"{p[0]}: {p[1]*100:.1f}% (cote {p[2]})" for p in [(p['type'], float(p['prob'][:-1])/100, p['cote']) for p in halftime_probs]])}</span></p>
+                <p><b>Cotes mi-temps :</b> {' | '.join([f"{od['type']}: {od['cote']}" for od in halftime_odds_data]) if halftime_odds_data else 'Pas de cotes mi-temps'}</p>
                 <p><b>Explication :</b> {explication}</p>
                 <h3>Statistiques principales</h3>
                 <table class="stats-table">
@@ -271,6 +344,15 @@ def match_details(match_id):
                     {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td></tr>' for s in stats)}
                 </table>
                 <canvas id="statsChart" height="200"></canvas>
+                <div class="timeline-chart">
+                    <h3>Évolution du score</h3>
+                    <canvas id="timelineChart" height="120"></canvas>
+                </div>
+                <div class="history-block">
+                    <b>3 derniers résultats {team1} :</b><br> {'<br>'.join(team1_hist) if team1_hist else 'Aucun'}<br><br>
+                    <b>3 derniers résultats {team2} :</b><br> {'<br>'.join(team2_hist) if team2_hist else 'Aucun'}
+                </div>
+                <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.href);alert('Lien copié !');">Partager ce match</button>
             </div>
             <script>
                 const labels = { [repr(s['nom']) for s in stats] };
@@ -287,11 +369,76 @@ def match_details(match_id):
                     }},
                     options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
                 }});
+                // Timeline score
+                const timelineLabels = { [repr(t['label']) for t in timeline] };
+                const timelineS1 = { [int(t['s1']) if str(t['s1']).isdigit() else 0 for t in timeline] };
+                const timelineS2 = { [int(t['s2']) if str(t['s2']).isdigit() else 0 for t in timeline] };
+                new Chart(document.getElementById('timelineChart'), {{
+                    type: 'line',
+                    data: {{
+                        labels: timelineLabels,
+                        datasets: [
+                            {{ label: '{team1}', data: timelineS1, borderColor: 'rgba(44,62,80,0.9)', fill: false }},
+                            {{ label: '{team2}', data: timelineS2, borderColor: 'rgba(39,174,96,0.9)', fill: false }}
+                        ]
+                    }},
+                    options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
+                }});
             </script>
         </body></html>
         '''
     except Exception as e:
-        return f"Erreur lors de l'affichage des détails du match : {e}"
+        return render_template_string(f'<div style="padding:40px;text-align:center;color:#c0392b;font-size:22px;">Erreur l\'affichage des détails du match : {e}</div>')
+
+def get_best_prediction(odds_data, team1, team2):
+    if not odds_data:
+        return "–", []
+    probs = []
+    total = sum(1/od['cote'] for od in odds_data)
+    for od in odds_data:
+        prob = (1/od['cote']) / total
+        probs.append((od['type'], prob, od['cote']))
+    best = max(probs, key=lambda x: x[1])
+    pred = {
+        "1": f"{team1} gagne ({best[1]*100:.1f}%)",
+        "2": f"{team2} gagne ({best[1]*100:.1f}%)",
+        "X": f"Match nul ({best[1]*100:.1f}%)"
+    }.get(best[0], "–")
+    # Format all probabilities
+    all_probs = [
+        {
+            "type": {"1": team1, "2": team2, "X": "Nul"}.get(t, t),
+            "prob": f"{p*100:.1f}%",
+            "cote": c
+        }
+        for t, p, c in probs
+    ]
+    return pred, all_probs
+
+@app.route('/export_csv')
+def export_csv():
+    try:
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
+        response = requests.get(api_url)
+        matches = response.json().get("Value", [])
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Equipe 1", "Score 1", "Score 2", "Equipe 2", "Sport", "Ligue", "Statut", "Date & Heure"])
+        for match in matches:
+            team1 = match.get("O1", "–")
+            team2 = match.get("O2", "–")
+            score1 = match.get("SC", {}).get("FS", {}).get("S1", "–")
+            score2 = match.get("SC", {}).get("FS", {}).get("S2", "–")
+            league = match.get("LE", "–")
+            sport = detect_sport(league)
+            statut = match.get("TN", "–")
+            match_ts = match.get("S", 0)
+            match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
+            writer.writerow([team1, score1, score2, team2, sport, league, statut, match_time])
+        output.seek(0)
+        return send_file(io.BytesIO(output.getvalue().encode()), mimetype='text/csv', as_attachment=True, download_name='matchs.csv')
+    except Exception as e:
+        return f"Erreur lors de l'export CSV : {e}"
 
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
@@ -310,6 +457,15 @@ TEMPLATE = """<!DOCTYPE html>
         .pagination { text-align: center; margin: 20px 0; }
         .pagination button { padding: 8px 16px; margin: 0 4px; font-size: 16px; border: none; background: #2c3e50; color: white; border-radius: 4px; cursor: pointer; }
         .pagination button:disabled { background: #ccc; cursor: not-allowed; }
+        .probs { font-size: 12px; color: #555; margin-top: 2px; }
+        .prob-high { color: #27ae60; font-weight: bold; }
+        .prob-mid { color: #f39c12; font-weight: bold; }
+        .prob-low { color: #c0392b; font-weight: bold; }
+        .team-logo { width: 28px; height: 28px; vertical-align: middle; border-radius: 50%; margin-right: 4px; }
+        .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; }
+        .status-live { background: #27ae60; }
+        .status-finished { background: #7f8c8d; }
+        .status-upcoming { background: #2980b9; }
         /* Responsive */
         @media (max-width: 800px) {
             table, thead, tbody, th, td, tr { display: block; }
@@ -329,6 +485,8 @@ TEMPLATE = """<!DOCTYPE html>
             td:nth-of-type(10):before { content: 'Humidité'; }
             td:nth-of-type(11):before { content: 'Cotes'; }
             td:nth-of-type(12):before { content: 'Prédiction'; }
+            td:nth-of-type(13):before { content: 'Cotes mi-temps'; }
+            td:nth-of-type(14):before { content: 'Prédiction mi-temps'; }
         }
         /* Loader */
         #loader { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center; }
@@ -348,7 +506,7 @@ TEMPLATE = """<!DOCTYPE html>
 </head><body>
     <div id="loader"><div class="spinner"></div></div>
     <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
-
+    <div style="text-align:center; color:#888; font-size:13px; margin-bottom:10px;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
     <form method="get">
         <label>Sport :
             <select name="sport" onchange="this.form.submit()">
@@ -374,13 +532,20 @@ TEMPLATE = """<!DOCTYPE html>
                 <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
             </select>
         </label>
+        <label>Trier par :
+            <select name="sort" onchange="this.form.submit()">
+                <option value="datetime" {% if request.args.get('sort', 'datetime') == 'datetime' %}selected{% endif %}>Heure</option>
+                <option value="prob" {% if request.args.get('sort') == 'prob' %}selected{% endif %}>Probabilité</option>
+                <option value="cote" {% if request.args.get('sort') == 'cote' %}selected{% endif %}>Cote</option>
+            </select>
+        </label>
     </form>
-
     <div class="pagination">
         <form method="get" style="display:inline;">
             <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
             <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
             <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+            <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
             <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %}>Page précédente</button>
         </form>
         <span>Page {{ page }} / {{ total_pages }}</span>
@@ -388,22 +553,32 @@ TEMPLATE = """<!DOCTYPE html>
             <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
             <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
             <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+            <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
             <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %}>Page suivante</button>
         </form>
     </div>
-
+    <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;">
+        <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
+    </div>
     <table>
         <tr>
             <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
             <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
-            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Détails</th>
+            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Cotes mi-temps</th><th>Prédiction mi-temps</th><th>Détails</th>
         </tr>
         {% for m in data %}
         <tr>
-            <td>{{m.team1}}</td><td>{{m.score1}}</td><td>{{m.score2}}</td><td>{{m.team2}}</td>
-            <td>{{m.sport}}</td><td>{{m.league}}</td><td>{{m.status}}</td><td>{{m.datetime}}</td>
-            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
-            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a>{% else %}–{% endif %}</td>
+            <td>{% if m.team1 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_1.png' onerror="this.style.display='none'">{% endif %}{{m.team1}}</td>
+            <td>{{m.score1}}</td><td>{{m.score2}}</td>
+            <td>{% if m.team2 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_2.png' onerror="this.style.display='none'">{% endif %}{{m.team2}}</td>
+            <td>{{m.sport}}</td><td>{{m.league}}</td>
+            <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
+            <td>{{m.datetime}}</td>
+            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td>
+            <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
+            <td>{{m.halftime_odds|join(" | ")}}</td>
+            <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
+            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}</td>
         </tr>
         {% endfor %}
     </table>
