@@ -5,8 +5,61 @@ import datetime
 from operator import itemgetter
 import io
 import csv
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///matchs.db'
+db = SQLAlchemy(app)
+
+class Match(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    id_match = db.Column(db.String, unique=True)
+    equipe1 = db.Column(db.String)
+    score1 = db.Column(db.String)
+    score2 = db.Column(db.String)
+    equipe2 = db.Column(db.String)
+    sport = db.Column(db.String)
+    ligue = db.Column(db.String)
+    date_heure = db.Column(db.String)
+    statut = db.Column(db.String)
+
+# Migration automatique du CSV vers la base SQL (à faire une seule fois)
+def migrate_csv_to_sql():
+    import csv
+    import os
+    csv_file = 'historique_matchs.csv'
+    if os.path.exists(csv_file):
+        with open(csv_file, newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if not Match.query.filter_by(id_match=row['id_match']).first():
+                    m = Match(
+                        id_match=row['id_match'],
+                        equipe1=row['equipe1'],
+                        score1=row['score1'],
+                        score2=row['score2'],
+                        equipe2=row['equipe2'],
+                        sport=row['sport'],
+                        ligue=row['ligue'],
+                        date_heure=row['date_heure'],
+                        statut=row['statut']
+                    )
+                    db.session.add(m)
+            db.session.commit()
+        print('Migration CSV -> SQL terminée.')
+
+# Appel automatique de la migration au démarrage (ne fait rien si déjà migré)
+with app.app_context():
+    db.create_all()
+    migrate_csv_to_sql()
+
+# Dans la fonction de sauvegarde automatique (remplace l'écriture CSV par SQL)
+def save_matches_sql(matches):
+    for m in matches:
+        if not Match.query.filter_by(id_match=m['id_match']).first():
+            match = Match(**m)
+            db.session.add(match)
+    db.session.commit()
 
 @app.route('/')
 def home():
@@ -504,14 +557,7 @@ def export_csv():
 
 @app.route('/historique')
 def historique():
-    rows = []
-    try:
-        with open('historique_matchs.csv', newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                rows.append(row)
-    except Exception as e:
-        return render_template_string('<div style="padding:40px;text-align:center;color:#c0392b;font-size:22px;">Erreur lors de la lecture de l\'historique : {}</div>'.format(e))
+    rows = Match.query.order_by(Match.date_heure.desc()).all()
     return render_template_string('''
     <!DOCTYPE html>
     <html><head>
@@ -537,13 +583,13 @@ def historique():
                 </tr>
                 {% for r in rows %}
                 <tr>
-                    <td>{{r['date_heure']}}</td>
-                    <td>{{r['equipe1']}}</td>
-                    <td>{{r['score1']}} - {{r['score2']}}</td>
-                    <td>{{r['equipe2']}}</td>
-                    <td>{{r['sport']}}</td>
-                    <td>{{r['ligue']}}</td>
-                    <td>{{r['statut']}}</td>
+                    <td>{{r.date_heure}}</td>
+                    <td>{{r.equipe1}}</td>
+                    <td>{{r.score1}} - {{r.score2}}</td>
+                    <td>{{r.equipe2}}</td>
+                    <td>{{r.sport}}</td>
+                    <td>{{r.ligue}}</td>
+                    <td>{{r.statut}}</td>
                 </tr>
                 {% endfor %}
             </table>
