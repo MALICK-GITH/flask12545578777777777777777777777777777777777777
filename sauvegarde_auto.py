@@ -2,6 +2,7 @@ import requests
 import csv
 import os
 import datetime
+from app import save_matches_sql
 
 API_URL = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
 HISTO_CSV = "historique_matchs.csv"
@@ -75,7 +76,7 @@ def main():
                     "statut": statut
                 })
         if nouveaux:
-            save_matches(nouveaux)
+            save_matches_sql(nouveaux)
             print(f"{len(nouveaux)} nouveaux matchs terminés sauvegardés.")
         else:
             print("Aucun nouveau match terminé à sauvegarder.")
