@@ -694,6 +694,11 @@ TEMPLATE = """<!DOCTYPE html>
         </tr>
         {% endfor %}
     </table>
+    <script>
+      setInterval(function() {
+        window.location.reload();
+      }, 30000); // 30 secondes
+    </script>
 </body></html>"""
 
 if __name__ == "__main__":
