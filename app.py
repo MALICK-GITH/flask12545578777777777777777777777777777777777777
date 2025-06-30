@@ -209,6 +209,8 @@ def home():
                 temp = next((item["V"] for item in meteo_data if item.get("K") == 9), "–")
                 humid = next((item["V"] for item in meteo_data if item.get("K") == 27), "–")
 
+                bet_options = extract_bet_options(match)
+
                 data.append({
                     "team1": team1,
                     "team2": team2,
@@ -226,7 +228,8 @@ def home():
                     "halftime_odds": formatted_halftime_odds,
                     "halftime_prediction": halftime_prediction,
                     "halftime_probs": halftime_probs,
-                    "id": match.get("I", None)
+                    "id": match.get("I", None),
+                    "bet_options": bet_options
                 })
             except Exception as e:
                 print(f"Erreur lors du traitement d'un match: {e}")
@@ -603,6 +606,37 @@ def historique():
     </body></html>
     ''', rows=rows)
 
+def extract_bet_options(match):
+    """Retourne une liste structurée de toutes les options de paris disponibles pour un match."""
+    options = []
+    # E = options principales
+    for o in match.get('E', []):
+        label = f"Groupe {o.get('G')} - Type {o.get('T')}"
+        if o.get('P') is not None:
+            label += f" (param: {o.get('P')})"
+        options.append({
+            'label': label,
+            'cote': o.get('C'),
+            'groupe': o.get('G'),
+            'type': o.get('T'),
+            'param': o.get('P')
+        })
+    # AE = options avancées
+    for ae in match.get('AE', []):
+        g = ae.get('G')
+        for o in ae.get('ME', []):
+            label = f"Groupe {g} - Type {o.get('T')}"
+            if o.get('P') is not None:
+                label += f" (param: {o.get('P')})"
+            options.append({
+                'label': label,
+                'cote': o.get('C'),
+                'groupe': g,
+                'type': o.get('T'),
+                'param': o.get('P')
+            })
+    return options
+
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
     <meta charset="utf-8">
@@ -742,7 +776,16 @@ TEMPLATE = """<!DOCTYPE html>
             <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
             <td>{{m.halftime_odds|join(" | ")}}</td>
             <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
-            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}</td>
+            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
+                <details style='margin-top:5px;'>
+                  <summary style='cursor:pointer;font-size:13px;color:#2980b9;'>Options de paris</summary>
+                  <ul style='text-align:left;font-size:13px;'>
+                    {% for opt in m.bet_options %}
+                      <li>{{opt.label}} : <b>{{opt.cote}}</b></li>
+                    {% endfor %}
+                  </ul>
+                </details>
+            </td>
         </tr>
         {% endfor %}
     </table>
