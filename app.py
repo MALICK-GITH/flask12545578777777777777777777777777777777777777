@@ -754,32 +754,82 @@ TEMPLATE = """<!DOCTYPE html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Matchs en direct</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; margin:0; padding:0; background:#f8f8f8; color:#222; }
-        .container { max-width: 1200px; margin: auto; padding: 10px; }
-        table { width: 100%; border-collapse: collapse; font-size: 15px; }
-        th, td { padding: 7px 4px; text-align: center; }
-        th { background: #222; color: #fff; }
-        tr:nth-child(even) { background: #f2f2f2; }
-        tr:hover { background: #e0e0e0; }
-        .team-logo { height: 22px; vertical-align: middle; margin-right: 4px; }
-        .status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:3px; }
-        .status-live { background:#1ec700; }
-        .status-finished { background:#e74c3c; }
-        .status-upcoming { background:#aaa; }
-        @media (max-width: 700px) {
-          .container { padding: 2px; }
-          table, th, td { font-size: 12px; }
-          th, td { padding: 4px 1px; }
-          .team-logo { height: 16px; }
-        }
-        /* Mode sombre */
-        body.dark { background: #181818; color: #eee; }
-        body.dark th { background: #111; color: #fff; }
-        body.dark tr:nth-child(even) { background: #232323; }
-        body.dark tr:hover { background: #333; }
-        body.dark .status-dot { filter: brightness(1.2); }
-        footer { margin-top:40px;text-align:center;font-size:15px;color:#888; }
+    body {
+      font-family: 'Montserrat', Arial, sans-serif;
+      margin:0; padding:0;
+      min-height:100vh;
+      background: linear-gradient(135deg, #1e003a 0%, #2d0b5a 50%, #ffb300 100%);
+      color:#f3f3f3;
+      transition: background 0.7s;
+    }
+    body.dark {
+      background: linear-gradient(135deg, #0a0a23 0%, #1e003a 60%, #ffb300 100%);
+      color:#e0e0e0;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 10px;
+    }
+    .match-card {
+      background: rgba(255,255,255,0.10);
+      box-shadow: 0 8px 32px 0 rgba(31,38,135,0.37);
+      backdrop-filter: blur(8px);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.18);
+      margin-bottom: 18px;
+      padding: 18px 10px;
+      transition: transform 0.2s, box-shadow 0.2s;
+      animation: fadeIn 0.7s;
+    }
+    .match-card:hover {
+      transform: scale(1.025);
+      box-shadow: 0 12px 40px 0 #ffb30055;
+    }
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(30px); }
+      to { opacity:1; transform:translateY(0); }
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; background: none; }
+    th, td { padding: 7px 4px; text-align: center; background: none; }
+    th { background: rgba(30,0,58,0.8); color: #ffb300; font-family: 'Orbitron', Arial, sans-serif; font-size: 17px; letter-spacing: 1px; }
+    tr { background: none; }
+    tr:nth-child(even) { background: none; }
+    tr:hover { background: none; }
+    .team-logo { height: 22px; vertical-align: middle; margin-right: 4px; filter: drop-shadow(0 0 2px #ffb30088); }
+    .status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:3px; }
+    .status-live { background:#1ec700; box-shadow:0 0 8px #1ec70088; }
+    .status-finished { background:#e74c3c; box-shadow:0 0 8px #e74c3c88; }
+    .status-upcoming { background:#aaa; }
+    .neon-btn {
+      background: #ffb300;
+      color: #1e003a;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 18px;
+      font-family: 'Orbitron', Arial, sans-serif;
+      font-size: 15px;
+      box-shadow: 0 0 12px #ffb30088, 0 0 2px #fff;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+    .neon-btn:hover {
+      background: #fff;
+      color: #ffb300;
+      box-shadow: 0 0 24px #ffb300cc, 0 0 8px #fff;
+    }
+    @media (max-width: 700px) {
+      .container { padding: 2px; }
+      .match-card { padding: 8px 2px; }
+      table, th, td { font-size: 12px; }
+      th, td { padding: 4px 1px; }
+      .team-logo { height: 16px; }
+    }
+    footer { margin-top:40px;text-align:center;font-size:15px;color:#ffb300; text-shadow:0 0 2px #fff; }
+    ::-webkit-scrollbar { width: 8px; background: #2d0b5a; }
+    ::-webkit-scrollbar-thumb { background: #ffb300; border-radius: 8px; }
     </style>
     <script>
     function toggleDark() {
@@ -791,8 +841,7 @@ TEMPLATE = """<!DOCTYPE html>
     }
     </script>
 </head><body>
-    <div style="text-align:right;padding:7px 10px;"><button onclick="toggleDark()" style="padding:5px 12px;border-radius:6px;border:1px solid #aaa;background:#fff;cursor:pointer;">🌓 Mode sombre</button></div>
-    <div class="container">
+    <div style="text-align:right;padding:7px 10px;"><button onclick="toggleDark()" class="neon-btn">🌓 Mode sombre</button></div><div class="container">
         <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
         <div style="text-align:center; color:#888; font-size:13px; margin-bottom:10px;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
         <form method="get">
@@ -849,40 +898,89 @@ TEMPLATE = """<!DOCTYPE html>
             <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
             <a href="/historique" style="background:#2980b9;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;margin-left:10px;">Historique</a>
         </div>
-        <table>
-            <tr>
-                <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
-                <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
-                <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Cotes mi-temps</th><th>Prédiction mi-temps</th><th>Détails</th>
-            </tr>
+        <div class="table-wrap">
             {% for m in data %}
-            <tr>
-                <td>{% if m.team1 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_1.png' onerror="this.style.display='none'">{% endif %}{{ get_flag(m.team1) }} {{m.team1}}</td>
-                <td>{{m.score1}}</td><td>{{m.score2}}</td>
-                <td>{% if m.team2 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_2.png' onerror="this.style.display='none'">{% endif %}{{ get_flag(m.team2) }} {{m.team2}}</td>
-                <td>{{m.sport}}</td><td>{{m.league}}</td>
-                <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
-                <td>{{m.datetime}}</td>
-                <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td>
-                <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
-                <td>{{m.halftime_odds|join(" | ")}}</td>
-                <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
-                <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
-                    <details style='margin-top:5px;'>
-                      <summary style='cursor:pointer;font-size:13px;color:#2980b9;'>Options de paris</summary>
-                      <ul style='text-align:left;font-size:13px;'>
-                        {% for opt in m.bet_options %}
-                          <li>{{ bet_option_label(opt, m.team1, m.team2) }} : <b>{{opt.cote}}</b></li>
-                        {% endfor %}
-                      </ul>
-                    </details>
-                </td>
-            </tr>
+            <div class="match-card">
+                <div class="match-header">
+                    <div class="match-teams">
+                        {% if m.team1 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_1.png' onerror="this.style.display='none'">{% endif %}{{ get_flag(m.team1)|safe }} {{m.team1}}
+                    </div>
+                    <span class='match-status {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}
+                </div>
+                <div class="match-info">
+                    <b>Ligue :</b> {{m.league}} | <b>Sport :</b> {{m.sport}}
+                </div>
+                <div class="match-info">
+                    <b>Score :</b> {{m.score1}} - {{m.score2}}
+                </div>
+                <div class="match-info">
+                    <b>Date & Heure :</b> {{m.datetime}}
+                </div>
+                <div class="match-info">
+                    <b>Température :</b> {{m.temp}}°C | <b>Humidité :</b> {{m.humid}}%
+                </div>
+                <div class="match-info">
+                    <b>Cotes :</b> {{m.odds|join(" | ")}}
+                </div>
+                <div class="match-info">
+                    <b>Prédiction :</b> {{m.prediction}}
+                </div>
+                <div class="match-info">
+                    <b>Cotes mi-temps :</b> {{m.halftime_odds|join(" | ")}}
+                </div>
+                <div class="match-info">
+                    <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
+                </div>
+                <div class="match-info">
+                    <b>Prédiction ML :</b> {{m.prediction_ml}}
+                </div>
+                <div class="bet-options">
+                    {% for opt in m.bet_options %}
+                        <li>{{ bet_option_label(opt, m.team1, m.team2) }} : <b>{{opt.cote}}</b></li>
+                    {% endfor %}
+                </div>
+                <div class="match-pred">
+                    <b>Prédiction :</b> {{m.prediction}}
+                </div>
+                <div class="match-pred">
+                    <b>Prédiction ML :</b> {{m.prediction_ml}}
+                </div>
+                <div class="match-pred">
+                    <b>Probabilités :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.all_probs])}}
+                </div>
+                <div class="match-pred">
+                    <b>Cotes mi-temps :</b> {{' | '.join([f"{od['type']}: {od['cote']}" for od in m.halftime_odds_data]) if m.halftime_odds_data else 'Pas de cotes mi-temps'}}
+                </div>
+                <div class="match-pred">
+                    <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
+                </div>
+                <div class="match-pred">
+                    <b>Probabilités mi-temps :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.halftime_probs])}}
+                </div>
+                <div class="match-pred">
+                    <b>Probabilités :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.all_probs])}}
+                </div>
+                <div class="match-pred">
+                    <b>Cotes :</b> {{' | '.join([f"{od['type']}: {od['cote']}" for od in m.odds_data]) if m.odds_data else 'Pas de cotes disponibles'}}
+                </div>
+                <div class="match-pred">
+                    <b>Prédiction :</b> {{m.prediction}}
+                </div>
+                <div class="match-pred">
+                    <b>Cotes mi-temps :</b> {{' | '.join([f"{od['type']}: {od['cote']}" for od in m.halftime_odds_data]) if m.halftime_odds_data else 'Pas de cotes mi-temps'}}
+                </div>
+                <div class="match-pred">
+                    <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
+                </div>
+                <div class="match-pred">
+                    <b>Probabilités mi-temps :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.halftime_probs])}}
+                </div>
+                <div class="match-pred">
+                    <b>Probabilités :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.all_probs])}}
+                </div>
+            </div>
             {% endfor %}
-        </table>
-        <footer>
-            Créateur : <b>SOLITAIRE HACK</b> | Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a> | Canal : <a href="https://t.me/SOLITAIREHACK" target="_blank">https://t.me/SOLITAIREHACK</a>
-        </footer>
+        </div>
     </div>
     <script>
       setInterval(function() {
@@ -949,19 +1047,19 @@ with app.app_context():
     train_ml_model()
 
 def get_flag(team):
-    # Mapping simple pour quelques pays/équipes connus, à étendre selon besoin
+    # Mapping équipe -> code pays (ISO 3166-1 alpha-2)
     flags = {
-        'france': '🇫🇷', 'espagne': '🇪🇸', 'italie': '🇮🇹', 'allemagne': '🇩🇪', 'angleterre': '🇬🇧',
-        'brazil': '🇧🇷', 'argentine': '🇦🇷', 'portugal': '🇵🇹', 'maroc': '🇲🇦', 'sénégal': '🇸🇳',
-        'côte d'ivoire': '🇨🇮', 'cote d'ivoire': '🇨🇮', 'nigeria': '🇳🇬', 'usa': '🇺🇸', 'belgique': '🇧🇪',
-        'tunisie': '🇹🇳', 'algérie': '🇩🇿', 'pays-bas': '🇳🇱', 'pays bas': '🇳🇱', 'suisse': '🇨🇭',
-        'turquie': '🇹🇷', 'croatie': '🇭🇷', 'pologne': '🇵🇱', 'suède': '🇸🇪', 'norvège': '🇳🇴',
-        'japon': '🇯🇵', 'corée': '🇰🇷', 'chine': '🇨🇳', 'canada': '🇨🇦', 'mexique': '🇲🇽',
+        'france': 'fr', 'espagne': 'es', 'italie': 'it', 'allemagne': 'de', 'angleterre': 'gb',
+        'brazil': 'br', 'argentine': 'ar', 'portugal': 'pt', 'maroc': 'ma', 'sénégal': 'sn',
+        "côte d'ivoire": 'ci', "cote d'ivoire": 'ci', 'nigeria': 'ng', 'usa': 'us', 'belgique': 'be',
+        'tunisie': 'tn', 'algérie': 'dz', 'pays-bas': 'nl', 'pays bas': 'nl', 'suisse': 'ch',
+        'turquie': 'tr', 'croatie': 'hr', 'pologne': 'pl', 'suède': 'se', 'norvège': 'no',
+        'japon': 'jp', 'corée': 'kr', 'chine': 'cn', 'canada': 'ca', 'mexique': 'mx'
     }
     t = team.lower() if team else ''
     for k, v in flags.items():
         if k in t:
-            return v
+            return f'<img src="https://flagcdn.com/16x12/{v}.png" style="vertical-align:middle;margin-right:2px;">'
     return ''
 
 @app.route('/import_historique', methods=['GET', 'POST'])
