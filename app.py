@@ -289,7 +289,8 @@ def home():
                 # Prédiction ML
                 prediction_ml = predict_ml(team1, team2, score1, score2)
 
-                data.append({
+                # Préparation des données pour le template
+                m = {
                     "team1": team1,
                     "team2": team2,
                     "score1": score1,
@@ -309,7 +310,13 @@ def home():
                     "id": match.get("I", None),
                     "bet_options": bet_options,
                     "prediction_ml": prediction_ml
-                })
+                }
+                m['odds_str'] = ' | '.join(m['odds'])
+                m['halftime_odds_str'] = ' | '.join(m['halftime_odds'])
+                m['all_probs_str'] = ' | '.join([f"{p['type']}: {p['prob']}" for p in m['all_probs']])
+                m['halftime_probs_str'] = ' | '.join([f"{p['type']}: {p['prob']}" for p in m['halftime_probs']])
+
+                data.append(m)
             except Exception as e:
                 print(f"Erreur lors du traitement d'un match: {e}")
                 continue
@@ -920,13 +927,13 @@ TEMPLATE = """<!DOCTYPE html>
                     <b>Température :</b> {{m.temp}}°C | <b>Humidité :</b> {{m.humid}}%
                 </div>
                 <div class="match-info">
-                    <b>Cotes :</b> {{m.odds|join(" | ")}}
+                    <b>Cotes :</b> {{m.odds_str}}
                 </div>
                 <div class="match-info">
                     <b>Prédiction :</b> {{m.prediction}}
                 </div>
                 <div class="match-info">
-                    <b>Cotes mi-temps :</b> {{m.halftime_odds|join(" | ")}}
+                    <b>Cotes mi-temps :</b> {{m.halftime_odds_str}}
                 </div>
                 <div class="match-info">
                     <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
@@ -946,37 +953,37 @@ TEMPLATE = """<!DOCTYPE html>
                     <b>Prédiction ML :</b> {{m.prediction_ml}}
                 </div>
                 <div class="match-pred">
-                    <b>Probabilités :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.all_probs])}}
+                    <b>Probabilités :</b> {{m.all_probs_str}}
                 </div>
                 <div class="match-pred">
-                    <b>Cotes mi-temps :</b> {{' | '.join([f"{od['type']}: {od['cote']}" for od in m.halftime_odds_data]) if m.halftime_odds_data else 'Pas de cotes mi-temps'}}
+                    <b>Cotes mi-temps :</b> {{m.halftime_odds_str}}
                 </div>
                 <div class="match-pred">
                     <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
                 </div>
                 <div class="match-pred">
-                    <b>Probabilités mi-temps :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.halftime_probs])}}
+                    <b>Probabilités mi-temps :</b> {{m.halftime_probs_str}}
                 </div>
                 <div class="match-pred">
-                    <b>Probabilités :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.all_probs])}}
+                    <b>Probabilités :</b> {{m.all_probs_str}}
                 </div>
                 <div class="match-pred">
-                    <b>Cotes :</b> {{' | '.join([f"{od['type']}: {od['cote']}" for od in m.odds_data]) if m.odds_data else 'Pas de cotes disponibles'}}
+                    <b>Cotes :</b> {{m.odds_str}}
                 </div>
                 <div class="match-pred">
                     <b>Prédiction :</b> {{m.prediction}}
                 </div>
                 <div class="match-pred">
-                    <b>Cotes mi-temps :</b> {{' | '.join([f"{od['type']}: {od['cote']}" for od in m.halftime_odds_data]) if m.halftime_odds_data else 'Pas de cotes mi-temps'}}
+                    <b>Cotes mi-temps :</b> {{m.halftime_odds_str}}
                 </div>
                 <div class="match-pred">
                     <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
                 </div>
                 <div class="match-pred">
-                    <b>Probabilités mi-temps :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.halftime_probs])}}
+                    <b>Probabilités mi-temps :</b> {{m.halftime_probs_str}}
                 </div>
                 <div class="match-pred">
-                    <b>Probabilités :</b> {{' | '.join([f"{p.type}: {p.prob}" for p in m.all_probs])}}
+                    <b>Probabilités :</b> {{m.all_probs_str}}
                 </div>
             </div>
             {% endfor %}
