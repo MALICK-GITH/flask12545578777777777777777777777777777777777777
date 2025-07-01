@@ -9,6 +9,12 @@ from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 import joblib
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+import logging
+
+# Configuration du logger
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///matchs.db'
@@ -27,6 +33,20 @@ class Match(db.Model):
     statut = db.Column(db.String)
     prediction = db.Column(db.String)  # Prédiction principale
     halftime_prediction = db.Column(db.String)  # Prédiction mi-temps
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String, unique=True, nullable=False)
+    password_hash = db.Column(db.String, nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    access_until = db.Column(db.DateTime, nullable=True)  # Date/heure de fin d'accès
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+    def is_access_valid(self):
+        from datetime import datetime
+        return self.access_until is None or self.access_until > datetime.utcnow()
 
 # Migration automatique du CSV vers la base SQL (à faire une seule fois)
 def migrate_csv_to_sql():
@@ -1144,6 +1164,256 @@ with app.app_context():
     if os.path.exists('historique_matchs.xlsx'):
         import_matches_from_excel('historique_matchs.xlsx')
     train_ml_model()
+
+# Initialisation Flask-Login
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Création d'un admin par défaut si aucun n'existe
+with app.app_context():
+    db.create_all()
+    if not User.query.filter_by(is_admin=True).first():
+        admin = User(email='admin@admin.com', is_admin=True)
+        admin.set_password('admin123')  # À changer après la première connexion !
+        from datetime import datetime, timedelta
+        admin.access_until = datetime.utcnow() + timedelta(days=365)
+        db.session.add(admin)
+        db.session.commit()
+
+from flask import flash, session
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        user = User.query.filter_by(email=email).first()
+        if user and user.check_password(password):
+            if not user.is_access_valid():
+                logging.warning(f"Tentative d'accès expiré pour {email}")
+                return render_template_string('<div style="padding:40px;text-align:center;color:#c0392b;font-size:22px;">Accès expiré. Contactez l\'administrateur.</div>')
+            login_user(user)
+            logging.info(f"Connexion réussie pour {email}")
+            return redirect(url_for('home'))
+        else:
+            logging.warning(f"Échec de connexion pour {email}")
+            return render_template_string(LOGIN_TEMPLATE, error="Identifiants invalides.")
+    return render_template_string(LOGIN_TEMPLATE)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logging.info(f"Déconnexion de {current_user.email}")
+    logout_user()
+    return redirect(url_for('login'))
+
+# Protection de la page d'accueil et autres routes sensibles
+@app.before_request
+def restrict_access():
+    allowed_routes = ['login', 'static']
+    if request.endpoint not in allowed_routes:
+        if not current_user.is_authenticated:
+            return redirect(url_for('login'))
+        if not current_user.is_access_valid():
+            logout_user()
+            return render_template_string('<div style="padding:40px;text-align:center;color:#c0392b;font-size:22px;">Votre accès a expiré.</div>')
+
+# Page de gestion des utilisateurs (admin uniquement)
+@app.route('/users', methods=['GET', 'POST'])
+@login_required
+def users():
+    if not current_user.is_admin:
+        return render_template_string('<div style="padding:40px;text-align:center;color:#c0392b;font-size:22px;">Accès réservé à l\'administrateur.</div>')
+    from datetime import datetime, timedelta
+    # Suppression d'utilisateur
+    if request.method == 'POST' and 'delete_user' in request.form:
+        del_email = request.form['delete_user']
+        if del_email != current_user.email:
+            user = User.query.filter_by(email=del_email).first()
+            if user:
+                db.session.delete(user)
+                db.session.commit()
+                logging.info(f"Suppression de l'utilisateur {del_email} par {current_user.email}")
+                flash(f"Utilisateur {del_email} supprimé.")
+    # Ajout/modification d'utilisateur
+    elif request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        # Empêcher la création d'autres admins
+        is_admin = (email == ADMIN_EMAIL)
+        duration = request.form['duration'] if 'duration' in request.form else '30min'
+        now = datetime.utcnow()
+        if duration == '30min':
+            access_until = now + timedelta(minutes=30)
+        elif duration == '1j':
+            access_until = now + timedelta(days=1)
+        elif duration == '1w':
+            access_until = now + timedelta(weeks=1)
+        elif duration == '1m':
+            access_until = now + timedelta(days=30)
+        elif duration == '2m':
+            access_until = now + timedelta(days=60)
+        elif duration == 'custom' and 'custom_date' in request.form:
+            access_until = datetime.strptime(request.form['custom_date'], '%Y-%m-%dT%H:%M')
+        else:
+            access_until = now + timedelta(minutes=30)  # Par défaut 30 min
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.set_password(password)
+            user.is_admin = is_admin
+            user.access_until = access_until
+            action = "modifié"
+        else:
+            user = User(email=email, is_admin=is_admin, access_until=access_until)
+            user.set_password(password)
+            db.session.add(user)
+            action = "créé"
+        db.session.commit()
+        logging.info(f"Utilisateur {email} {action} par {current_user.email}")
+        flash('Utilisateur ajouté ou modifié avec succès.')
+    users = User.query.all()
+    return render_template_string(USERS_TEMPLATE, users=users, current_user=current_user)
+
+# Page de profil utilisateur
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    message = None
+    if request.method == 'POST':
+        old_password = request.form['old_password']
+        new_password = request.form['new_password']
+        confirm_password = request.form['confirm_password']
+        if not current_user.check_password(old_password):
+            message = "Ancien mot de passe incorrect."
+        elif new_password != confirm_password:
+            message = "Les nouveaux mots de passe ne correspondent pas."
+        elif len(new_password) < 5:
+            message = "Le nouveau mot de passe doit contenir au moins 5 caractères."
+        else:
+            user = User.query.get(current_user.id)
+            user.set_password(new_password)
+            db.session.commit()
+            logging.info(f"Mot de passe changé pour {current_user.email}")
+            message = "Mot de passe changé avec succès !"
+    return render_template_string(PROFILE_TEMPLATE, user=current_user, message=message)
+
+# Templates HTML pour login, gestion utilisateurs, profil
+LOGIN_TEMPLATE = '''
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Connexion</title></head><body style="background:#f4f4f4;font-family:Arial;">
+<div style="max-width:400px;margin:60px auto;background:white;padding:30px;border-radius:10px;box-shadow:0 2px 8px #ccc;">
+<h2 style="text-align:center;">Connexion</h2>
+{% if error %}<div style="color:#c0392b;text-align:center;">{{error}}</div>{% endif %}
+<form method="post">
+<label>Email :<input type="email" name="email" required style="width:100%;padding:8px;margin:8px 0;"></label><br>
+<label>Mot de passe :<input type="password" name="password" required style="width:100%;padding:8px;margin:8px 0;"></label><br>
+<button type="submit" style="width:100%;padding:10px;background:#27ae60;color:white;border:none;border-radius:4px;font-size:16px;">Se connecter</button>
+</form>
+<div style="text-align:center;margin-top:10px;">
+Pas encore de compte ? <a href="/register">S'inscrire</a>
+</div>
+</div></body></html>
+'''
+
+USERS_TEMPLATE = '''
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Utilisateurs</title></head><body style="background:#f4f4f4;font-family:Arial;">
+<div style="max-width:700px;margin:40px auto;background:white;padding:30px;border-radius:10px;box-shadow:0 2px 8px #ccc;">
+<h2>Gestion des utilisateurs</h2>
+<form method="post" style="margin-bottom:30px;">
+<label>Email :<input type="email" name="email" required></label>
+<label>Mot de passe :<input type="password" name="password" required></label>
+<label>Durée d'accès :<select name="duration" onchange="document.getElementById('custom_date_block').style.display = this.value=='custom'?'inline':'none';">
+<option value="1j">1 jour</option>
+<option value="1w">1 semaine</option>
+<option value="1m">1 mois</option>
+<option value="2m">2 mois</option>
+<option value="30min">30 minutes</option>
+<option value="custom">Date personnalisée</option>
+</select></label>
+<span id="custom_date_block" style="display:none;">
+<input type="datetime-local" name="custom_date">
+</span>
+<label><input type="checkbox" name="is_admin"> Administrateur</label>
+<button type="submit">Ajouter/Modifier</button>
+</form>
+<table border="1" style="width:100%;border-collapse:collapse;">
+<tr><th>Email</th><th>Admin</th><th>Accès jusqu'au</th><th>Action</th></tr>
+{% for u in users %}
+<tr><td>{{u.email}}</td><td>{{'Oui' if u.is_admin else 'Non'}}</td><td>{{u.access_until if u.access_until else 'Illimité'}}</td><td>{% if u.email != current_user.email %}<form method="post" style="display:inline;"><input type="hidden" name="delete_user" value="{{u.email}}"><button type="submit" onclick="return confirm('Supprimer {{u.email}} ?');">Supprimer</button></form>{% else %}<span style="color:#888;">(vous)</span>{% endif %}</td></tr>
+{% endfor %}
+</table>
+<a href="/logout">Déconnexion</a> | <a href="/profile">Mon profil</a> | <a href="/">Accueil</a>
+</div></body></html>
+'''
+
+PROFILE_TEMPLATE = '''
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Profil</title></head><body style="background:#f4f4f4;font-family:Arial;">
+<div style="max-width:400px;margin:60px auto;background:white;padding:30px;border-radius:10px;box-shadow:0 2px 8px #ccc;">
+<h2>Mon profil</h2>
+<p><b>Email :</b> {{user.email}}</p>
+<p><b>Administrateur :</b> {{'Oui' if user.is_admin else 'Non'}}</p>
+<p><b>Accès jusqu'au :</b> {{user.access_until if user.access_until else 'Illimité'}}</p>
+{% if message %}<div style="color:#27ae60;text-align:center;margin-bottom:10px;">{{message}}</div>{% endif %}
+<h3>Changer mon mot de passe</h3>
+<form method="post">
+<label>Ancien mot de passe :<input type="password" name="old_password" required></label><br>
+<label>Nouveau mot de passe :<input type="password" name="new_password" required></label><br>
+<label>Confirmer le nouveau :<input type="password" name="confirm_password" required></label><br>
+<button type="submit">Changer le mot de passe</button>
+</form>
+<a href="/logout">Déconnexion</a> | <a href="/">Accueil</a>
+</div></body></html>
+'''
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    from datetime import datetime, timedelta
+    message = None
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        confirm = request.form['confirm']
+        if User.query.filter_by(email=email).first():
+            message = "Cet email est déjà utilisé."
+        elif email == ADMIN_EMAIL:
+            message = "Impossible de s'inscrire avec cet email."
+        elif len(password) < 5:
+            message = "Le mot de passe doit contenir au moins 5 caractères."
+        elif password != confirm:
+            message = "Les mots de passe ne correspondent pas."
+        else:
+            user = User(email=email, is_admin=False, access_until=datetime.utcnow() + timedelta(minutes=30))
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            logging.info(f"Nouvel utilisateur inscrit : {email}")
+            return redirect(url_for('login'))
+    return render_template_string(REGISTER_TEMPLATE, message=message)
+
+REGISTER_TEMPLATE = '''
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Inscription</title></head><body style="background:#f4f4f4;font-family:Arial;">
+<div style="max-width:400px;margin:60px auto;background:white;padding:30px;border-radius:10px;box-shadow:0 2px 8px #ccc;">
+<h2 style="text-align:center;">Inscription</h2>
+{% if message %}<div style="color:#c0392b;text-align:center;">{{message}}</div>{% endif %}
+<form method="post">
+<label>Email :<input type="email" name="email" required style="width:100%;padding:8px;margin:8px 0;"></label><br>
+<label>Mot de passe :<input type="password" name="password" required style="width:100%;padding:8px;margin:8px 0;"></label><br>
+<label>Confirmer le mot de passe :<input type="password" name="confirm" required style="width:100%;padding:8px;margin:8px 0;"></label><br>
+<button type="submit" style="width:100%;padding:10px;background:#27ae60;color:white;border:none;border-radius:4px;font-size:16px;">S'inscrire</button>
+</form>
+<div style="text-align:center;margin-top:10px;">
+Déjà inscrit ? <a href="/login">Se connecter</a>
+</div>
+</div></body></html>
+'''
 
 if __name__ == "__main__":
     import sys
