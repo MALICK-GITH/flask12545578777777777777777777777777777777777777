@@ -209,7 +209,7 @@ def home():
                     continue
 
                 match_ts = match.get("S", 0)
-                match_time = datetime.datetime.fromtimestamp(match_ts, datetime.timezone.utc).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
+                match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
 
                 # --- Cotes ---
                 odds_data = []
@@ -289,8 +289,7 @@ def home():
                 # Prédiction ML
                 prediction_ml = predict_ml(team1, team2, score1, score2)
 
-                # Préparation des données pour le template
-                m = {
+                data.append({
                     "team1": team1,
                     "team2": team2,
                     "score1": score1,
@@ -310,13 +309,7 @@ def home():
                     "id": match.get("I", None),
                     "bet_options": bet_options,
                     "prediction_ml": prediction_ml
-                }
-                m['odds_str'] = ' | '.join(m['odds'])
-                m['halftime_odds_str'] = ' | '.join(m['halftime_odds'])
-                m['all_probs_str'] = ' | '.join([f"{p['type']}: {p['prob']}" for p in m['all_probs']])
-                m['halftime_probs_str'] = ' | '.join([f"{p['type']}: {p['prob']}" for p in m['halftime_probs']])
-
-                data.append(m)
+                })
             except Exception as e:
                 print(f"Erreur lors du traitement d'un match: {e}")
                 continue
@@ -723,134 +716,73 @@ def extract_bet_options(match):
             })
     return options
 
-def bet_option_label(opt, team1, team2):
-    g, t, p = opt.get('groupe'), opt.get('type'), opt.get('param')
-    # 1N2
-    if g == 1:
-        if t == 1:
-            return f"Victoire {team1}"
-        elif t == 2:
-            return f"Victoire {team2}"
-        elif t == 3:
-            return "Match nul"
-    # Mi-temps
-    if g == 8:
-        if t == 4:
-            return f"Mi-temps : {team1}"
-        elif t == 5:
-            return "Mi-temps : Nul"
-        elif t == 6:
-            return f"Mi-temps : {team2}"
-    # Handicap
-    if g == 2:
-        if t == 7:
-            return f"Handicap {team1} {p:+}"
-        elif t == 8:
-            return f"Handicap {team2} {p:+}"
-    # Over/Under
-    if g == 17:
-        if t == 9:
-            return f"Plus de {p} buts"
-        elif t == 10:
-            return f"Moins de {p} buts"
-    # Autres (fallback)
-    return opt.get('label')
-
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Matchs en direct</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
     <style>
-    body {
-      font-family: 'Montserrat', Arial, sans-serif;
-      margin:0; padding:0;
-      min-height:100vh;
-      background: linear-gradient(135deg, #1e003a 0%, #2d0b5a 50%, #ffb300 100%);
-      color:#f3f3f3;
-      transition: background 0.7s;
-    }
-    body.dark {
-      background: linear-gradient(135deg, #0a0a23 0%, #1e003a 60%, #ffb300 100%);
-      color:#e0e0e0;
-    }
-    .container {
-      max-width: 1200px;
-      margin: auto;
-      padding: 10px;
-    }
-    .match-card {
-      background: rgba(255,255,255,0.10);
-      box-shadow: 0 8px 32px 0 rgba(31,38,135,0.37);
-      backdrop-filter: blur(8px);
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.18);
-      margin-bottom: 18px;
-      padding: 18px 10px;
-      transition: transform 0.2s, box-shadow 0.2s;
-      animation: fadeIn 0.7s;
-    }
-    .match-card:hover {
-      transform: scale(1.025);
-      box-shadow: 0 12px 40px 0 #ffb30055;
-    }
-    @keyframes fadeIn {
-      from { opacity:0; transform:translateY(30px); }
-      to { opacity:1; transform:translateY(0); }
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 15px; background: none; }
-    th, td { padding: 7px 4px; text-align: center; background: none; }
-    th { background: rgba(30,0,58,0.8); color: #ffb300; font-family: 'Orbitron', Arial, sans-serif; font-size: 17px; letter-spacing: 1px; }
-    tr { background: none; }
-    tr:nth-child(even) { background: none; }
-    tr:hover { background: none; }
-    .team-logo { height: 22px; vertical-align: middle; margin-right: 4px; filter: drop-shadow(0 0 2px #ffb30088); }
-    .status-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:3px; }
-    .status-live { background:#1ec700; box-shadow:0 0 8px #1ec70088; }
-    .status-finished { background:#e74c3c; box-shadow:0 0 8px #e74c3c88; }
-    .status-upcoming { background:#aaa; }
-    .neon-btn {
-      background: #ffb300;
-      color: #1e003a;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 18px;
-      font-family: 'Orbitron', Arial, sans-serif;
-      font-size: 15px;
-      box-shadow: 0 0 12px #ffb30088, 0 0 2px #fff;
-      cursor: pointer;
-      transition: background 0.2s, color 0.2s, box-shadow 0.2s;
-    }
-    .neon-btn:hover {
-      background: #fff;
-      color: #ffb300;
-      box-shadow: 0 0 24px #ffb300cc, 0 0 8px #fff;
-    }
-    @media (max-width: 700px) {
-      .container { padding: 2px; }
-      .match-card { padding: 8px 2px; }
-      table, th, td { font-size: 12px; }
-      th, td { padding: 4px 1px; }
-      .team-logo { height: 16px; }
-    }
-    footer { margin-top:40px;text-align:center;font-size:15px;color:#ffb300; text-shadow:0 0 2px #fff; }
-    ::-webkit-scrollbar { width: 8px; background: #2d0b5a; }
-    ::-webkit-scrollbar-thumb { background: #ffb300; border-radius: 8px; }
+        body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+        h2 { text-align: center; }
+        form { text-align: center; margin-bottom: 20px; }
+        select { padding: 8px; margin: 0 10px; font-size: 14px; }
+        table { border-collapse: collapse; margin: auto; width: 98%; background: white; }
+        th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
+        th { background: #2c3e50; color: white; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .pagination { text-align: center; margin: 20px 0; }
+        .pagination button { padding: 8px 16px; margin: 0 4px; font-size: 16px; border: none; background: #2c3e50; color: white; border-radius: 4px; cursor: pointer; }
+        .pagination button:disabled { background: #ccc; cursor: not-allowed; }
+        .probs { font-size: 12px; color: #555; margin-top: 2px; }
+        .prob-high { color: #27ae60; font-weight: bold; }
+        .prob-mid { color: #f39c12; font-weight: bold; }
+        .prob-low { color: #c0392b; font-weight: bold; }
+        .team-logo { width: 28px; height: 28px; vertical-align: middle; border-radius: 50%; margin-right: 4px; }
+        .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; }
+        .status-live { background: #27ae60; }
+        .status-finished { background: #7f8c8d; }
+        .status-upcoming { background: #2980b9; }
+        /* Responsive */
+        @media (max-width: 800px) {
+            table, thead, tbody, th, td, tr { display: block; }
+            th { position: absolute; left: -9999px; top: -9999px; }
+            tr { margin-bottom: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 6px #ccc; }
+            td { border: none; border-bottom: 1px solid #eee; position: relative; padding-left: 50%; min-height: 40px; }
+            td:before { position: absolute; top: 10px; left: 10px; width: 45%; white-space: nowrap; font-weight: bold; }
+            td:nth-of-type(1):before { content: 'Équipe 1'; }
+            td:nth-of-type(2):before { content: 'Score 1'; }
+            td:nth-of-type(3):before { content: 'Score 2'; }
+            td:nth-of-type(4):before { content: 'Équipe 2'; }
+            td:nth-of-type(5):before { content: 'Sport'; }
+            td:nth-of-type(6):before { content: 'Ligue'; }
+            td:nth-of-type(7):before { content: 'Statut'; }
+            td:nth-of-type(8):before { content: 'Date & Heure'; }
+            td:nth-of-type(9):before { content: 'Température'; }
+            td:nth-of-type(10):before { content: 'Humidité'; }
+            td:nth-of-type(11):before { content: 'Cotes'; }
+            td:nth-of-type(12):before { content: 'Prédiction'; }
+            td:nth-of-type(13):before { content: 'Cotes mi-temps'; }
+            td:nth-of-type(14):before { content: 'Prédiction mi-temps'; }
+        }
+        /* Loader */
+        #loader { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center; }
+        #loader .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #2c3e50; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
     <script>
-    function toggleDark() {
-      document.body.classList.toggle('dark');
-      localStorage.setItem('darkmode', document.body.classList.contains('dark'));
-    }
-    window.onload = function() {
-      if(localStorage.getItem('darkmode')==='true') document.body.classList.add('dark');
-    }
+        document.addEventListener('DOMContentLoaded', function() {
+            var forms = document.querySelectorAll('form');
+            forms.forEach(function(form) {
+                form.addEventListener('submit', function() {
+                    document.getElementById('loader').style.display = 'flex';
+                });
+            });
+        });
     </script>
 </head><body>
-    <div style="text-align:right;padding:7px 10px;"><button onclick="toggleDark()" class="neon-btn">🌓 Mode sombre</button></div><div class="container">
+    <div id="loader"><div class="spinner"></div></div>
     <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
-        <div style="text-align:center; color:#888; font-size:13px; margin-bottom:10px;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
+    <div style="text-align:center; color:#888; font-size:13px; margin-bottom:10px;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
     <form method="get">
         <label>Sport :
             <select name="sport" onchange="this.form.submit()">
@@ -876,20 +808,20 @@ TEMPLATE = """<!DOCTYPE html>
                 <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
             </select>
         </label>
-            <label>Trier par :
-                <select name="sort" onchange="this.form.submit()">
-                    <option value="datetime" {% if request.args.get('sort', 'datetime') == 'datetime' %}selected{% endif %}>Heure</option>
-                    <option value="prob" {% if request.args.get('sort') == 'prob' %}selected{% endif %}>Probabilité</option>
-                    <option value="cote" {% if request.args.get('sort') == 'cote' %}selected{% endif %}>Cote</option>
-                </select>
-            </label>
+        <label>Trier par :
+            <select name="sort" onchange="this.form.submit()">
+                <option value="datetime" {% if request.args.get('sort', 'datetime') == 'datetime' %}selected{% endif %}>Heure</option>
+                <option value="prob" {% if request.args.get('sort') == 'prob' %}selected{% endif %}>Probabilité</option>
+                <option value="cote" {% if request.args.get('sort') == 'cote' %}selected{% endif %}>Cote</option>
+            </select>
+        </label>
     </form>
     <div class="pagination">
         <form method="get" style="display:inline;">
             <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
             <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
             <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
-                <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
+            <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
             <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %}>Page précédente</button>
         </form>
         <span>Page {{ page }} / {{ total_pages }}</span>
@@ -897,98 +829,48 @@ TEMPLATE = """<!DOCTYPE html>
             <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
             <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
             <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
-                <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
+            <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
             <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %}>Page suivante</button>
         </form>
     </div>
-        <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;">
-            <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
-            <a href="/historique" style="background:#2980b9;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;margin-left:10px;">Historique</a>
-        </div>
-        <div class="table-wrap">
-        {% for m in data %}
-            <div class="match-card">
-                <div class="match-header">
-                    <div class="match-teams">
-                        {% if m.team1 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_1.png' onerror="this.style.display='none'">{% endif %}{{ get_flag(m.team1)|safe }} {{m.team1}}
-                    </div>
-                    <span class='match-status {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}
-                </div>
-                <div class="match-info">
-                    <b>Ligue :</b> {{m.league}} | <b>Sport :</b> {{m.sport}}
-                </div>
-                <div class="match-info">
-                    <b>Score :</b> {{m.score1}} - {{m.score2}}
-                </div>
-                <div class="match-info">
-                    <b>Date & Heure :</b> {{m.datetime}}
-                </div>
-                <div class="match-info">
-                    <b>Température :</b> {{m.temp}}°C | <b>Humidité :</b> {{m.humid}}%
-                </div>
-                <div class="match-info">
-                    <b>Cotes :</b> {{m.odds_str}}
-                </div>
-                <div class="match-info">
-                    <b>Prédiction :</b> {{m.prediction}}
-                </div>
-                <div class="match-info">
-                    <b>Cotes mi-temps :</b> {{m.halftime_odds_str}}
-                </div>
-                <div class="match-info">
-                    <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
-                </div>
-                <div class="match-info">
-                    <b>Prédiction ML :</b> {{m.prediction_ml}}
-                </div>
-                <div class="bet-options">
-                    {% for opt in m.bet_options %}
-                        <li>{{ bet_option_label(opt, m.team1, m.team2) }} : <b>{{opt.cote}}</b></li>
-                    {% endfor %}
-                </div>
-                <div class="match-pred">
-                    <b>Prédiction :</b> {{m.prediction}}
-                </div>
-                <div class="match-pred">
-                    <b>Prédiction ML :</b> {{m.prediction_ml}}
-                </div>
-                <div class="match-pred">
-                    <b>Probabilités :</b> {{m.all_probs_str}}
-                </div>
-                <div class="match-pred">
-                    <b>Cotes mi-temps :</b> {{m.halftime_odds_str}}
-                </div>
-                <div class="match-pred">
-                    <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
-                </div>
-                <div class="match-pred">
-                    <b>Probabilités mi-temps :</b> {{m.halftime_probs_str}}
-                </div>
-                <div class="match-pred">
-                    <b>Probabilités :</b> {{m.all_probs_str}}
-                </div>
-                <div class="match-pred">
-                    <b>Cotes :</b> {{m.odds_str}}
-                </div>
-                <div class="match-pred">
-                    <b>Prédiction :</b> {{m.prediction}}
-                </div>
-                <div class="match-pred">
-                    <b>Cotes mi-temps :</b> {{m.halftime_odds_str}}
-                </div>
-                <div class="match-pred">
-                    <b>Prédiction mi-temps :</b> {{m.halftime_prediction}}
-                </div>
-                <div class="match-pred">
-                    <b>Probabilités mi-temps :</b> {{m.halftime_probs_str}}
-                </div>
-                <div class="match-pred">
-                    <b>Probabilités :</b> {{m.all_probs_str}}
-                </div>
-            </div>
-        {% endfor %}
-        </div>
+    <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;">
+        <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
+        <a href="/historique" style="background:#2980b9;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;margin-left:10px;">Historique</a>
     </div>
+    <table>
+        <tr>
+            <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
+            <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
+            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Cotes mi-temps</th><th>Prédiction mi-temps</th><th>Détails</th>
+        </tr>
+        {% for m in data %}
+        <tr>
+            <td>{% if m.team1 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_1.png' onerror="this.style.display='none'">{% endif %}{{m.team1}}</td>
+            <td>{{m.score1}}</td><td>{{m.score2}}</td>
+            <td>{% if m.team2 and m.id %}<img class='team-logo' src='https://1xbet.com/images/events/{{m.id}}_2.png' onerror="this.style.display='none'">{% endif %}{{m.team2}}</td>
+            <td>{{m.sport}}</td><td>{{m.league}}</td>
+            <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
+            <td>{{m.datetime}}</td>
+            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td>
+            <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
+            <td>{{m.halftime_odds|join(" | ")}}</td>
+            <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
+            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
+                <details style='margin-top:5px;'>
+                  <summary style='cursor:pointer;font-size:13px;color:#2980b9;'>Options de paris</summary>
+                  <ul style='text-align:left;font-size:13px;'>
+                    {% for opt in m.bet_options %}
+                      <li>{{opt.label}} : <b>{{opt.cote}}</b></li>
+                    {% endfor %}
+                  </ul>
+                </details>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+    <footer style="margin-top:40px;text-align:center;font-size:15px;color:#888;">
+        Créateur : <b>SOLITAIRE HACK</b> | Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a> | Canal : <a href="https://t.me/SOLITAIREHACK" target="_blank">https://t.me/SOLITAIREHACK</a>
+    </footer>
     <script>
       setInterval(function() {
         window.location.reload();
@@ -1052,78 +934,6 @@ with app.app_context():
     if os.path.exists('historique_matchs.xlsx'):
         import_matches_from_excel('historique_matchs.xlsx')
     train_ml_model()
-
-def get_flag(team):
-    # Mapping équipe -> code pays (ISO 3166-1 alpha-2)
-    flags = {
-        'france': 'fr', 'espagne': 'es', 'italie': 'it', 'allemagne': 'de', 'angleterre': 'gb',
-        'brazil': 'br', 'argentine': 'ar', 'portugal': 'pt', 'maroc': 'ma', 'sénégal': 'sn',
-        "côte d'ivoire": 'ci', "cote d'ivoire": 'ci', 'nigeria': 'ng', 'usa': 'us', 'belgique': 'be',
-        'tunisie': 'tn', 'algérie': 'dz', 'pays-bas': 'nl', 'pays bas': 'nl', 'suisse': 'ch',
-        'turquie': 'tr', 'croatie': 'hr', 'pologne': 'pl', 'suède': 'se', 'norvège': 'no',
-        'japon': 'jp', 'corée': 'kr', 'chine': 'cn', 'canada': 'ca', 'mexique': 'mx'
-    }
-    t = team.lower() if team else ''
-    for k, v in flags.items():
-        if k in t:
-            return f'<img src="https://flagcdn.com/16x12/{v}.png" style="vertical-align:middle;margin-right:2px;">'
-    return ''
-
-@app.route('/import_historique', methods=['GET', 'POST'])
-def import_historique():
-    msg = ''
-    if request.method == 'POST':
-        f = request.files.get('file')
-        if f:
-            filename = f.filename.lower()
-            if filename.endswith('.csv'):
-                path = 'import_temp.csv'
-                f.save(path)
-                import_matches_from_csv(path)
-                os.remove(path)
-                msg = 'Import CSV réussi !'
-            elif filename.endswith('.xlsx'):
-                path = 'import_temp.xlsx'
-                f.save(path)
-                import_matches_from_excel(path)
-                os.remove(path)
-                msg = 'Import Excel réussi !'
-            else:
-                msg = 'Format non supporté.'
-    return render_template_string('''<html><body style="font-family:Arial;padding:30px;">
-    <h2>Importer un historique de matchs</h2>
-    <form method="post" enctype="multipart/form-data">
-      <input type="file" name="file" accept=".csv,.xlsx" required>
-      <button type="submit">Importer</button>
-    </form>
-    <p style="color:green;">{{msg}}</p>
-    <a href="/">Retour à l'accueil</a>
-    </body></html>''', msg=msg)
-
-@app.route('/stats_historique')
-def stats_historique():
-    matchs = Match.query.all()
-    total = len(matchs)
-    v1 = sum(1 for m in matchs if m.score1 and m.score2 and m.score1 > m.score2)
-    nul = sum(1 for m in matchs if m.score1 == m.score2 and m.score1 != '' and m.score2 != '')
-    v2 = sum(1 for m in matchs if m.score1 and m.score2 and m.score1 < m.score2)
-    def bar(n, total):
-        l = 40
-        filled = int((n/total)*l) if total else 0
-        return '█'*filled + '░'*(l-filled)
-    bar_v1 = bar(v1, total)
-    bar_nul = bar(nul, total)
-    bar_v2 = bar(v2, total)
-    return render_template_string('''<html><body style="font-family:Arial;padding:30px;">
-    <h2>Répartition des résultats dans l'historique</h2>
-    <table border=1 cellpadding=6><tr><th>Résultat</th><th>Nombre</th><th>Graphique</th></tr>
-    <tr><td>Victoire équipe 1</td><td>{{v1}}</td><td><pre>{{bar_v1}}</pre></td></tr>
-    <tr><td>Nul</td><td>{{nul}}</td><td><pre>{{bar_nul}}</pre></td></tr>
-    <tr><td>Victoire équipe 2</td><td>{{v2}}</td><td><pre>{{bar_v2}}</pre></td></tr>
-    </table>
-    <p>Total de matchs : <b>{{total}}</b></p>
-    <a href="/">Retour à l'accueil</a>
-    </body></html>''', v1=v1, nul=nul, v2=v2, total=total, bar_v1=bar_v1, bar_nul=bar_nul, bar_v2=bar_v2)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
