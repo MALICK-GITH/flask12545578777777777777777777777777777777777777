@@ -519,19 +519,25 @@ def match_details(match_id):
             <title>Détails du match</title>
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
             <style>
-                body {{ font-family: Arial; padding: 20px; background: #f4f4f4; }}
-                .container {{ max-width: 700px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px #ccc; padding: 20px; }}
-                h2 {{ text-align: center; }}
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; background: #0a0a23; min-height: 100vh; position: relative; overflow-x: hidden; }}
+                .watermark {{ position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); font-size: 10vw; font-weight: bold; letter-spacing: 10px; color: transparent; background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 50%, #00ff85 100%); -webkit-background-clip: text; background-clip: text; opacity: 0.10; z-index: 0; pointer-events: none; text-shadow: 0 0 60px #00ffe7, 0 0 120px #ff00ea, 0 0 40px #00ff85; animation: neon-glow 3s infinite alternate; }}
+                @keyframes neon-glow {{ 0% {{ text-shadow: 0 0 60px #00ffe7, 0 0 120px #ff00ea, 0 0 40px #00ff85; }} 100% {{ text-shadow: 0 0 120px #00ffe7, 0 0 200px #ff00ea, 0 0 80px #00ff85; }} }}
+                .container {{ max-width: 700px; margin: auto; background: rgba(10,10,35,0.98); border-radius: 18px; box-shadow: 0 0 30px #00ffe7, 0 0 10px #ff00ea; padding: 20px; position: relative; z-index: 2; }}
+                h2 {{ text-align: center; color: #fff; text-shadow: 0 0 8px #00ffe7, 0 0 2px #ff00ea; letter-spacing: 2px; }}
                 .stats-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-                .stats-table th, .stats-table td {{ border: 1px solid #ccc; padding: 8px; text-align: center; }}
-                .back-btn {{ margin-bottom: 20px; display: inline-block; }}
-                .probs {{ font-size: 13px; color: #555; margin-top: 2px; }}
+                .stats-table th, .stats-table td {{ border: 1px solid #22264b; padding: 8px; text-align: center; color: #fff; }}
+                .stats-table th {{ background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%); color: #0a0a23; }}
+                .back-btn {{ margin-bottom: 20px; display: inline-block; border-radius: 30px; background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%); color: #0a0a23; font-weight: bold; padding: 10px 26px; font-size: 16px; box-shadow: 0 0 10px #00ffe7, 0 0 20px #ff00ea; text-decoration: none; transition: box-shadow 0.3s, background 0.3s; }}
+                .back-btn:hover {{ background: linear-gradient(90deg, #ff00ea 0%, #00ffe7 100%); box-shadow: 0 0 20px #ff00ea, 0 0 40px #00ffe7; }}
+                .probs {{ font-size: 13px; color: #00ffe7; margin-top: 2px; text-shadow: 0 0 6px #00ffe7; }}
                 .timeline-chart {{ margin-top: 30px; }}
-                .history-block {{ margin-top: 20px; background: #f9f9f9; border-radius: 8px; padding: 10px; }}
-                .share-btn {{ background: #2980b9; color: #fff; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; margin-top: 10px; }}
-                .forme-block {{ margin-top: 20px; background: #eafaf1; border-radius: 8px; padding: 10px; }}
+                .history-block {{ margin-top: 20px; background: rgba(0,255,231,0.04); border-radius: 8px; padding: 10px; box-shadow: 0 0 10px #00ffe7; }}
+                .share-btn {{ background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%); color: #0a0a23; border: none; border-radius: 30px; padding: 10px 26px; font-size: 16px; font-weight: bold; box-shadow: 0 0 10px #00ffe7, 0 0 20px #ff00ea; cursor: pointer; margin-top: 10px; transition: box-shadow 0.3s, background 0.3s; }}
+                .share-btn:hover {{ background: linear-gradient(90deg, #ff00ea 0%, #00ffe7 100%); box-shadow: 0 0 20px #ff00ea, 0 0 40px #00ffe7; }}
+                .forme-block {{ margin-top: 20px; background: rgba(0,255,231,0.08); border-radius: 8px; padding: 10px; box-shadow: 0 0 10px #00ffe7; color: #fff; }}
             </style>
         </head><body>
+            <div class="watermark">SOLITAIRE HACK</div>
             <div class="container">
                 <a href="/" class="back-btn">&larr; Retour à la liste</a>
                 <h2>{team1} vs {team2}</h2>
@@ -543,22 +549,22 @@ def match_details(match_id):
                 <p><b>Explication :</b> {explication}</p>
                 <div class="forme-block">
                     <b>Forme récente {team1} :</b> {' '.join(forme1['derniers']) if forme1['derniers'] else '–'}
-                    <span style="color:#27ae60;">{forme1['pct_vic']} V</span> /
-                    <span style="color:#f39c12;">{forme1['pct_nul']} N</span> /
-                    <span style="color:#c0392b;">{forme1['pct_defaite']} D</span><br>
+                    <span style="color:#00ff85;">{forme1['pct_vic']} V</span> /
+                    <span style="color:#ff00ea;">{forme1['pct_nul']} N</span> /
+                    <span style="color:#00ffe7;">{forme1['pct_defaite']} D</span><br>
                     <b>Forme récente {team2} :</b> {' '.join(forme2['derniers']) if forme2['derniers'] else '–'}
-                    <span style="color:#27ae60;">{forme2['pct_vic']} V</span> /
-                    <span style="color:#f39c12;">{forme2['pct_nul']} N</span> /
-                    <span style="color:#c0392b;">{forme2['pct_defaite']} D</span>
+                    <span style="color:#00ff85;">{forme2['pct_vic']} V</span> /
+                    <span style="color:#ff00ea;">{forme2['pct_nul']} N</span> /
+                    <span style="color:#00ffe7;">{forme2['pct_defaite']} D</span>
                 </div>
-                <h3>Statistiques principales</h3>
+                <h3 style="color:#fff;text-shadow:0 0 8px #00ffe7,0 0 2px #ff00ea;">Statistiques principales</h3>
                 <table class="stats-table">
                     <tr><th>Statistique</th><th>{team1}</th><th>{team2}</th></tr>
                     {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td></tr>' for s in stats)}
                 </table>
                 <canvas id="statsChart" height="200"></canvas>
                 <div class="timeline-chart">
-                    <h3>Évolution du score</h3>
+                    <h3 style="color:#fff;text-shadow:0 0 8px #00ffe7,0 0 2px #ff00ea;">Évolution du score</h3>
                     <canvas id="timelineChart" height="120"></canvas>
                 </div>
                 <div class="history-block">
@@ -576,8 +582,8 @@ def match_details(match_id):
                     data: {{
                         labels: labels,
                         datasets: [
-                            {{ label: '{team1}', data: data1, backgroundColor: 'rgba(44,62,80,0.7)' }},
-                            {{ label: '{team2}', data: data2, backgroundColor: 'rgba(39,174,96,0.7)' }}
+                            {{ label: '{team1}', data: data1, backgroundColor: 'rgba(0,255,231,0.7)' }},
+                            {{ label: '{team2}', data: data2, backgroundColor: 'rgba(255,0,234,0.7)' }}
                         ]
                     }},
                     options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
@@ -591,8 +597,8 @@ def match_details(match_id):
                     data: {{
                         labels: timelineLabels,
                         datasets: [
-                            {{ label: '{team1}', data: timelineS1, borderColor: 'rgba(44,62,80,0.9)', fill: false }},
-                            {{ label: '{team2}', data: timelineS2, borderColor: 'rgba(39,174,96,0.9)', fill: false }}
+                            {{ label: '{team1}', data: timelineS1, borderColor: 'rgba(0,255,231,0.9)', fill: false }},
+                            {{ label: '{team2}', data: timelineS2, borderColor: 'rgba(255,0,234,0.9)', fill: false }}
                         ]
                     }},
                     options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
@@ -652,16 +658,21 @@ def historique():
         <meta charset="utf-8">
         <title>Historique des matchs terminés</title>
         <style>
-            body { font-family: Arial; background: #f4f4f4; padding: 20px; }
-            .container { max-width: 900px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px #ccc; padding: 20px; }
-            h2 { text-align: center; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-            th { background: #27ae60; color: #fff; }
-            tr:nth-child(even) { background: #f9f9f9; }
-            .back-btn { margin-bottom: 20px; display: inline-block; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; background: #0a0a23; padding: 20px; min-height: 100vh; position: relative; overflow-x: hidden; }
+            .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); font-size: 10vw; font-weight: bold; letter-spacing: 10px; color: transparent; background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 50%, #00ff85 100%); -webkit-background-clip: text; background-clip: text; opacity: 0.10; z-index: 0; pointer-events: none; text-shadow: 0 0 60px #00ffe7, 0 0 120px #ff00ea, 0 0 40px #00ff85; animation: neon-glow 3s infinite alternate; }
+            @keyframes neon-glow { 0% { text-shadow: 0 0 60px #00ffe7, 0 0 120px #ff00ea, 0 0 40px #00ff85; } 100% { text-shadow: 0 0 120px #00ffe7, 0 0 200px #ff00ea, 0 0 80px #00ff85; } }
+            .container { max-width: 900px; margin: auto; background: rgba(10,10,35,0.98); border-radius: 18px; box-shadow: 0 0 30px #00ffe7, 0 0 10px #ff00ea; padding: 20px; position: relative; z-index: 2; }
+            h2 { text-align: center; color: #fff; text-shadow: 0 0 8px #00ffe7, 0 0 2px #ff00ea; letter-spacing: 2px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; background: rgba(10,10,35,0.98); border-radius: 18px; overflow: hidden; box-shadow: 0 0 30px #00ffe7, 0 0 10px #ff00ea; }
+            th, td { border: 1px solid #22264b; padding: 12px 8px; text-align: center; color: #fff; }
+            th { background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%); color: #0a0a23; font-size: 17px; }
+            tr:nth-child(even) { background-color: rgba(0,255,231,0.04); }
+            tr:nth-child(odd) { background-color: rgba(255,0,234,0.03); }
+            .back-btn { margin-bottom: 20px; display: inline-block; border-radius: 30px; background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%); color: #0a0a23; font-weight: bold; padding: 10px 26px; font-size: 16px; box-shadow: 0 0 10px #00ffe7, 0 0 20px #ff00ea; text-decoration: none; transition: box-shadow 0.3s, background 0.3s; }
+            .back-btn:hover { background: linear-gradient(90deg, #ff00ea 0%, #00ffe7 100%); box-shadow: 0 0 20px #ff00ea, 0 0 40px #00ffe7; }
         </style>
     </head><body>
+        <div class="watermark">SOLITAIRE HACK</div>
         <div class="container">
             <a href="/" class="back-btn">&larr; Retour à la liste</a>
             <h2>Historique des matchs terminés</h2>
@@ -722,33 +733,136 @@ TEMPLATE = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Matchs en direct</title>
     <style>
-        body { font-family: Arial; padding: 20px; background: #f4f4f4; }
-        h2 { text-align: center; }
-        form { text-align: center; margin-bottom: 20px; }
-        select { padding: 8px; margin: 0 10px; font-size: 14px; }
-        table { border-collapse: collapse; margin: auto; width: 98%; background: white; }
-        th, td { padding: 10px; border: 1px solid #ccc; text-align: center; }
-        th { background: #2c3e50; color: white; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .pagination { text-align: center; margin: 20px 0; }
-        .pagination button { padding: 8px 16px; margin: 0 4px; font-size: 16px; border: none; background: #2c3e50; color: white; border-radius: 4px; cursor: pointer; }
-        .pagination button:disabled { background: #ccc; cursor: not-allowed; }
-        .probs { font-size: 12px; color: #555; margin-top: 2px; }
-        .prob-high { color: #27ae60; font-weight: bold; }
-        .prob-mid { color: #f39c12; font-weight: bold; }
-        .prob-low { color: #c0392b; font-weight: bold; }
-        .team-logo { width: 28px; height: 28px; vertical-align: middle; border-radius: 50%; margin-right: 4px; }
-        .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 4px; }
-        .status-live { background: #27ae60; }
-        .status-finished { background: #7f8c8d; }
-        .status-upcoming { background: #2980b9; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            padding: 20px;
+            background: #0a0a23;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+        /* Filigrane géant */
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            font-size: 10vw;
+            font-weight: bold;
+            letter-spacing: 10px;
+            color: transparent;
+            background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 50%, #00ff85 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            opacity: 0.10;
+            z-index: 0;
+            pointer-events: none;
+            text-shadow: 0 0 60px #00ffe7, 0 0 120px #ff00ea, 0 0 40px #00ff85;
+            animation: neon-glow 3s infinite alternate;
+        }
+        @keyframes neon-glow {
+            0% { text-shadow: 0 0 60px #00ffe7, 0 0 120px #ff00ea, 0 0 40px #00ff85; }
+            100% { text-shadow: 0 0 120px #00ffe7, 0 0 200px #ff00ea, 0 0 80px #00ff85; }
+        }
+        h2, h3, th {
+            color: #fff;
+            text-shadow: 0 0 8px #00ffe7, 0 0 2px #ff00ea;
+            letter-spacing: 2px;
+        }
+        form { text-align: center; margin-bottom: 20px; z-index: 2; position: relative; }
+        select {
+            padding: 10px 18px;
+            margin: 0 10px;
+            font-size: 15px;
+            border-radius: 30px;
+            border: none;
+            background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%);
+            color: #0a0a23;
+            font-weight: bold;
+            box-shadow: 0 0 10px #00ffe7, 0 0 20px #ff00ea;
+            outline: none;
+            transition: box-shadow 0.3s;
+        }
+        select:focus {
+            box-shadow: 0 0 20px #00ff85, 0 0 40px #ff00ea;
+        }
+        table {
+            border-collapse: collapse;
+            margin: auto;
+            width: 98%;
+            background: rgba(10,10,35,0.98);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 0 30px #00ffe7, 0 0 10px #ff00ea;
+            z-index: 2;
+            position: relative;
+        }
+        th, td {
+            padding: 14px 10px;
+            border: 1px solid #22264b;
+            text-align: center;
+            color: #fff;
+        }
+        th {
+            background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%);
+            color: #0a0a23;
+            font-size: 17px;
+        }
+        tr:nth-child(even) { background-color: rgba(0,255,231,0.04); }
+        tr:nth-child(odd) { background-color: rgba(255,0,234,0.03); }
+        .pagination {
+            text-align: center;
+            margin: 20px 0;
+            z-index: 2;
+            position: relative;
+        }
+        .pagination button {
+            padding: 12px 28px;
+            margin: 0 4px;
+            font-size: 18px;
+            border: none;
+            border-radius: 30px;
+            background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%);
+            color: #0a0a23;
+            font-weight: bold;
+            box-shadow: 0 0 10px #00ffe7, 0 0 20px #ff00ea;
+            cursor: pointer;
+            transition: box-shadow 0.3s, background 0.3s;
+        }
+        .pagination button:disabled {
+            background: #22264b;
+            color: #888;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        .probs {
+            font-size: 13px;
+            color: #00ffe7;
+            margin-top: 2px;
+            text-shadow: 0 0 6px #00ffe7;
+        }
+        .prob-high { color: #00ff85; font-weight: bold; text-shadow: 0 0 8px #00ff85; }
+        .prob-mid { color: #ff00ea; font-weight: bold; text-shadow: 0 0 8px #ff00ea; }
+        .prob-low { color: #00ffe7; font-weight: bold; text-shadow: 0 0 8px #00ffe7; }
+        .team-logo {
+            width: 32px; height: 32px; vertical-align: middle; border-radius: 50%; margin-right: 4px;
+            border: 2px solid #00ffe7; box-shadow: 0 0 8px #00ffe7;
+            background: #111;
+        }
+        .status-dot {
+            display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 4px;
+            box-shadow: 0 0 8px #00ffe7;
+        }
+        .status-live { background: #00ff85; box-shadow: 0 0 16px #00ff85; }
+        .status-finished { background: #ff00ea; box-shadow: 0 0 16px #ff00ea; }
+        .status-upcoming { background: #00ffe7; box-shadow: 0 0 16px #00ffe7; }
         /* Responsive */
         @media (max-width: 800px) {
             table, thead, tbody, th, td, tr { display: block; }
             th { position: absolute; left: -9999px; top: -9999px; }
-            tr { margin-bottom: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 6px #ccc; }
-            td { border: none; border-bottom: 1px solid #eee; position: relative; padding-left: 50%; min-height: 40px; }
-            td:before { position: absolute; top: 10px; left: 10px; width: 45%; white-space: nowrap; font-weight: bold; }
+            tr { margin-bottom: 15px; background: rgba(10,10,35,0.98); border-radius: 18px; box-shadow: 0 2px 6px #00ffe7; }
+            td { border: none; border-bottom: 1px solid #22264b; position: relative; padding-left: 50%; min-height: 40px; }
+            td:before { position: absolute; top: 10px; left: 10px; width: 45%; white-space: nowrap; font-weight: bold; color: #00ffe7; }
             td:nth-of-type(1):before { content: 'Équipe 1'; }
             td:nth-of-type(2):before { content: 'Score 1'; }
             td:nth-of-type(3):before { content: 'Score 2'; }
@@ -765,9 +879,57 @@ TEMPLATE = """<!DOCTYPE html>
             td:nth-of-type(14):before { content: 'Prédiction mi-temps'; }
         }
         /* Loader */
-        #loader { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center; }
-        #loader .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #2c3e50; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
+        #loader {
+            display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh;
+            background: rgba(10,10,35,0.85); z-index: 9999; justify-content: center; align-items: center;
+        }
+        #loader .spinner {
+            border: 8px solid #22264b; border-top: 8px solid #00ffe7; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite;
+        }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+        /* Boutons néon */
+        a, button, .share-btn {
+            border: none;
+            border-radius: 30px;
+            background: linear-gradient(90deg, #00ffe7 0%, #ff00ea 100%);
+            color: #0a0a23;
+            font-weight: bold;
+            padding: 10px 26px;
+            font-size: 16px;
+            margin: 4px 0;
+            box-shadow: 0 0 10px #00ffe7, 0 0 20px #ff00ea;
+            cursor: pointer;
+            transition: box-shadow 0.3s, background 0.3s;
+            outline: none;
+            display: inline-block;
+        }
+        a:hover, button:hover, .share-btn:hover {
+            background: linear-gradient(90deg, #ff00ea 0%, #00ffe7 100%);
+            box-shadow: 0 0 20px #ff00ea, 0 0 40px #00ffe7;
+        }
+        details summary {
+            cursor: pointer;
+            font-size: 14px;
+            color: #00ffe7;
+            text-shadow: 0 0 6px #00ffe7;
+        }
+        details ul {
+            background: rgba(10,10,35,0.95);
+            border-radius: 10px;
+            padding: 10px 18px;
+            margin: 0;
+            box-shadow: 0 0 10px #00ffe7;
+        }
+        /* Footer néon */
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 16px;
+            color: #00ffe7;
+            text-shadow: 0 0 8px #00ffe7;
+            z-index: 2;
+            position: relative;
+        }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -780,9 +942,10 @@ TEMPLATE = """<!DOCTYPE html>
         });
     </script>
 </head><body>
+    <div class='watermark'>SOLITAIRE HACK</div>
     <div id="loader"><div class="spinner"></div></div>
     <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
-    <div style="text-align:center; color:#888; font-size:13px; margin-bottom:10px;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
+    <div style="text-align:center; color:#00ffe7; font-size:13px; margin-bottom:10px; text-shadow:0 0 8px #00ffe7;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
     <form method="get">
         <label>Sport :
             <select name="sport" onchange="this.form.submit()">
@@ -824,7 +987,7 @@ TEMPLATE = """<!DOCTYPE html>
             <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
             <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %}>Page précédente</button>
         </form>
-        <span>Page {{ page }} / {{ total_pages }}</span>
+        <span style="color:#00ffe7;text-shadow:0 0 8px #00ffe7;">Page {{ page }} / {{ total_pages }}</span>
         <form method="get" style="display:inline;">
             <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
             <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
@@ -833,9 +996,9 @@ TEMPLATE = """<!DOCTYPE html>
             <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %}>Page suivante</button>
         </form>
     </div>
-    <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;">
-        <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
-        <a href="/historique" style="background:#2980b9;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;margin-left:10px;">Historique</a>
+    <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;z-index:2;position:relative;">
+        <a href="/export_csv">Exporter CSV</a>
+        <a href="/historique" style="margin-left:10px;">Historique</a>
     </div>
     <table>
         <tr>
@@ -852,13 +1015,13 @@ TEMPLATE = """<!DOCTYPE html>
             <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
             <td>{{m.datetime}}</td>
             <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td>
-            <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
+            <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#00ffe7;text-shadow:0 0 8px #00ffe7;">{{m.prediction_ml}}</div></td>
             <td>{{m.halftime_odds|join(" | ")}}</td>
             <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
             <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
                 <details style='margin-top:5px;'>
-                  <summary style='cursor:pointer;font-size:13px;color:#2980b9;'>Options de paris</summary>
-                  <ul style='text-align:left;font-size:13px;'>
+                  <summary>Options de paris</summary>
+                  <ul>
                     {% for opt in m.bet_options %}
                       <li>{{opt.label}} : <b>{{opt.cote}}</b></li>
                     {% endfor %}
@@ -868,7 +1031,7 @@ TEMPLATE = """<!DOCTYPE html>
         </tr>
         {% endfor %}
     </table>
-    <footer style="margin-top:40px;text-align:center;font-size:15px;color:#888;">
+    <footer>
         Créateur : <b>SOLITAIRE HACK</b> | Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a> | Canal : <a href="https://t.me/SOLITAIREHACK" target="_blank">https://t.me/SOLITAIREHACK</a>
     </footer>
     <script>
