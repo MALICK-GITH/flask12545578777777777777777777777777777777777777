@@ -540,15 +540,15 @@ def match_details(match_id):
                 .history-block {{ margin-top: 20px; background: #f9f9f9; border-radius: 8px; padding: 10px; }}
                 .share-btn {{ background: #2980b9; color: #fff; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; margin-top: 10px; }}
                 .forme-block {{ margin-top: 20px; background: #eafaf1; border-radius: 8px; padding: 10px; }}
-                .row-finished-animate {
+                .row-finished-animate {{
                     animation: highlight-fade 2s ease-in-out;
                     background: #d4efdf !important;
-                }
-                @keyframes highlight-fade {
-                    0% { background: #f9e79f; }
-                    50% { background: #d4efdf; }
-                    100% { background: inherit; }
-                }
+                }}
+                @keyframes highlight-fade {{
+                    0% {{ background: #f9e79f; }}
+                    50% {{ background: #d4efdf; }}
+                    100% {{ background: inherit; }}
+                }}
             </style>
         </head><body>
             <div class="container">
@@ -864,7 +864,8 @@ def extract_bet_options(match):
 
 def predire_options(match):
     conseils = []
-    # Over/Under
+    # Over/Under (Moins d'abord, puis Plus)
+    over_under = []
     for ae in match.get('AE', []):
         if ae.get('G') == 17:
             for me in ae.get('ME', []):
@@ -872,9 +873,15 @@ def predire_options(match):
                     cote_f = float(me.get('C'))
                 except:
                     continue
-                if me.get('T') in [9, 10] and 1.399 <= cote_f <= 3 and me.get('P') is not None:
-                    conseils.append(f"{'Plus' if me['T']==9 else 'Moins'} de {me['P']} buts (cote {me['C']})")
-    # Handicap
+                if me.get('T') == 10 and 1.399 <= cote_f <= 3:
+                    over_under.append(("Moins", me.get('P', 0), me.get('C')))
+                elif me.get('T') == 9 and 1.399 <= cote_f <= 3:
+                    over_under.append(("Plus", me.get('P', 0), me.get('C')))
+    # Trie d'abord par type (Moins avant Plus), puis par valeur croissante
+    over_under_sorted = sorted(over_under, key=lambda x: (x[0], float(x[1]) if x[1] is not None else 0))
+    for typ, p, c in over_under_sorted:
+        conseils.append(f"{typ} de {p} buts (cote {c})")
+    # Handicap (affichage + ou -)
     for ae in match.get('AE', []):
         if ae.get('G') == 2:
             for me in ae.get('ME', []):
@@ -882,8 +889,10 @@ def predire_options(match):
                     cote_f = float(me.get('C'))
                 except:
                     continue
-                if me.get('T') in [7, 8] and 1.399 <= cote_f <= 3 and me.get('P') is not None:
-                    conseils.append(f"Handicap {'équipe 1' if me['T']==7 else 'équipe 2'} ({me['P']}) (cote {me['C']})")
+                if me.get('T') == 7 and 1.399 <= cote_f <= 3:
+                    conseils.append(f"Handicap équipe 1 ({me.get('P', 0):+}) (cote {me.get('C')})")
+                elif me.get('T') == 8 and 1.399 <= cote_f <= 3:
+                    conseils.append(f"Handicap équipe 2 ({me.get('P', 0):+}) (cote {me.get('C')})")
     return conseils
 
 TEMPLATE = """<!DOCTYPE html>
