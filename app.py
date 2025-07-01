@@ -1032,7 +1032,9 @@ TEMPLATE = """<!DOCTYPE html>
             <td>{{m.datetime}}</td>
             <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>
               {% if m.conseils %}
-                <div style='font-size:14px;color:#27ae60;font-weight:bold;margin-bottom:4px;'>🔮 Conseil du bot : {{ m.conseils[0] }}</div>
+                {% for conseil in m.conseils[:3] %}
+                  <div style='font-size:14px;color:#27ae60;font-weight:bold;margin-bottom:4px;'>🔮 Conseil du bot : {{ conseil }}</div>
+                {% endfor %}
               {% else %}
                 <div style='font-size:13px;color:#c0392b;'>Aucun conseil fiable disponible pour ce match</div>
               {% endif %}
