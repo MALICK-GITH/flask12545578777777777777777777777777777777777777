@@ -1177,11 +1177,11 @@ def load_user(user_id):
 # Création d'un admin par défaut si aucun n'existe
 with app.app_context():
     db.create_all()
-    if not User.query.filter_by(is_admin=True).first():
-        admin = User(email='admin@admin.com', is_admin=True)
-        admin.set_password('admin123')  # À changer après la première connexion !
+    if not User.query.filter_by(email=ADMIN_EMAIL).first():
+        admin = User(email=ADMIN_EMAIL, is_admin=True)
+        admin.set_password(ADMIN_PASSWORD)
         from datetime import datetime, timedelta
-        admin.access_until = datetime.utcnow() + timedelta(days=365)
+        admin.access_until = datetime.utcnow() + timedelta(days=365*10)
         db.session.add(admin)
         db.session.commit()
 
@@ -1245,7 +1245,7 @@ def users():
         email = request.form['email']
         password = request.form['password']
         # Empêcher la création d'autres admins
-        is_admin = (email == ADMIN_EMAIL)
+        is_admin = (email.strip().lower() == ADMIN_EMAIL)
         duration = request.form['duration'] if 'duration' in request.form else '30min'
         now = datetime.utcnow()
         if duration == '30min':
@@ -1382,7 +1382,7 @@ def register():
         confirm = request.form['confirm']
         if User.query.filter_by(email=email).first():
             message = "Cet email est déjà utilisé."
-        elif email == ADMIN_EMAIL:
+        elif email.strip().lower() == ADMIN_EMAIL:
             message = "Impossible de s'inscrire avec cet email."
         elif len(password) < 5:
             message = "Le mot de passe doit contenir au moins 5 caractères."
@@ -1414,6 +1414,9 @@ Déjà inscrit ? <a href="/login">Se connecter</a>
 </div>
 </div></body></html>
 '''
+
+ADMIN_EMAIL = 'kingsaddes@gmail.com'
+ADMIN_PASSWORD = '66240702Mkings'
 
 if __name__ == "__main__":
     import sys
