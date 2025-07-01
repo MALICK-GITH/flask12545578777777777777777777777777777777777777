@@ -1016,18 +1016,25 @@ TEMPLATE = """<!DOCTYPE html>
             <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
             <td>{{m.datetime}}</td>
             <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>
-              {{m.odds|join(" | ")}}<br>
+              {% if m.conseils %}
+                <div style='font-size:14px;color:#27ae60;font-weight:bold;margin-bottom:4px;'>🔮 Conseil du bot : {{ m.conseils[0] }}</div>
+              {% else %}
+                <div style='font-size:13px;color:#c0392b;'>Aucun conseil fiable disponible pour ce match</div>
+              {% endif %}
               <details style='font-size:12px;'>
-                <summary style='cursor:pointer;color:#2980b9;'>Autres options</summary>
+                <summary style='cursor:pointer;color:#2980b9;'>Toutes les options</summary>
                 <ul style='text-align:left;'>
                   {% for opt in m.bet_options %}
                     <li>{{opt.label}} : <b>{{opt.cote}}</b></li>
                   {% endfor %}
                 </ul>
               </details>
-              {% if m.conseils %}
-                <div style='margin-top:5px;font-size:12px;color:#27ae60;'>Conseils : {{ m.conseils|join(' / ') }}</div>
-              {% endif %}
+              <div style='margin-top:5px;font-size:11px;color:#888;'>
+                <i>Le marché 1X2 (victoire/nul/victoire) est risqué, privilégiez les conseils ci-dessus.</i>
+              </div>
+              <div style='margin-top:2px;font-size:11px;color:#bbb;'>
+                <span style='text-decoration:line-through;'>{{m.prediction}}</span>
+              </div>
             </td>
             <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
             <td>{{m.halftime_odds|join(" | ")}}</td>
