@@ -832,10 +832,12 @@ def historique():
     ''', rows=rows)
 
 def extract_bet_options(match):
-    """Retourne une liste structurée de toutes les options de paris disponibles pour un match."""
+    """Retourne une liste structurée de toutes les options de paris alternatives (hors 1X2) disponibles pour un match."""
     options = []
     # E = options principales
     for o in match.get('E', []):
+        if o.get('G') == 1:
+            continue  # On ignore 1X2
         label = f"Groupe {o.get('G')} - Type {o.get('T')}"
         if o.get('P') is not None:
             label += f" (param: {o.get('P')})"
@@ -849,6 +851,8 @@ def extract_bet_options(match):
     # AE = options avancées
     for ae in match.get('AE', []):
         g = ae.get('G')
+        if g == 1:
+            continue  # On ignore 1X2
         for o in ae.get('ME', []):
             label = f"Groupe {g} - Type {o.get('T')}"
             if o.get('P') is not None:
@@ -864,35 +868,56 @@ def extract_bet_options(match):
 
 def predire_options(match):
     conseils = []
-    # Over/Under (Moins d'abord, puis Plus)
+    team1 = match.get('O1', 'Équipe 1')
+    team2 = match.get('O2', 'Équipe 2')
+    # 1. Over/Under (G=17, T=9/10)
     over_under = []
-    for ae in match.get('AE', []):
-        if ae.get('G') == 17:
-            for me in ae.get('ME', []):
-                try:
-                    cote_f = float(me.get('C'))
-                except:
-                    continue
-                if me.get('T') == 10 and 1.399 <= cote_f <= 3:
-                    over_under.append(("Moins", me.get('P', 0), me.get('C')))
-                elif me.get('T') == 9 and 1.399 <= cote_f <= 3:
-                    over_under.append(("Plus", me.get('P', 0), me.get('C')))
-    # Trie d'abord par type (Moins avant Plus), puis par valeur croissante
+    for source in [match.get('E', []), sum([ae.get('ME', []) for ae in match.get('AE', []) if ae.get('G') == 17], [])]:
+        for o in source:
+            try:
+                cote_f = float(o.get('C'))
+            except:
+                continue
+            if o.get('G') == 17 and o.get('T') == 10 and 1.399 <= cote_f <= 3:
+                over_under.append(("Moins", o.get('P', 0), o.get('C')))
+            elif o.get('G') == 17 and o.get('T') == 9 and 1.399 <= cote_f <= 3:
+                over_under.append(("Plus", o.get('P', 0), o.get('C')))
+    # Trie : Moins/Plus, puis valeur croissante de P
     over_under_sorted = sorted(over_under, key=lambda x: (x[0], float(x[1]) if x[1] is not None else 0))
     for typ, p, c in over_under_sorted:
         conseils.append(f"{typ} de {p} buts (cote {c})")
-    # Handicap (affichage + ou -)
-    for ae in match.get('AE', []):
-        if ae.get('G') == 2:
-            for me in ae.get('ME', []):
-                try:
-                    cote_f = float(me.get('C'))
-                except:
-                    continue
-                if me.get('T') == 7 and 1.399 <= cote_f <= 3:
-                    conseils.append(f"Handicap équipe 1 ({me.get('P', 0):+}) (cote {me.get('C')})")
-                elif me.get('T') == 8 and 1.399 <= cote_f <= 3:
-                    conseils.append(f"Handicap équipe 2 ({me.get('P', 0):+}) (cote {me.get('C')})")
+    # 2. Handicap (G=2, T=7/8)
+    handicaps = []
+    for source in [match.get('E', []), sum([ae.get('ME', []) for ae in match.get('AE', []) if ae.get('G') == 2], [])]:
+        for o in source:
+            try:
+                cote_f = float(o.get('C'))
+            except:
+                continue
+            if o.get('G') == 2 and o.get('T') == 7 and 1.399 <= cote_f <= 3:
+                handicaps.append((team1, o.get('P', 0), o.get('C')))
+            elif o.get('G') == 2 and o.get('T') == 8 and 1.399 <= cote_f <= 3:
+                handicaps.append((team2, o.get('P', 0), o.get('C')))
+    # Trie par valeur absolue de P croissante
+    handicaps_sorted = sorted(handicaps, key=lambda x: abs(float(x[1])) if x[1] is not None else 0)
+    for equipe, p, c in handicaps_sorted:
+        conseils.append(f"Handicap {equipe} ({p:+}) (cote {c})")
+    # 3. Total équipe (G=62, T=13/14)
+    totaux = []
+    for source in [match.get('E', []), sum([ae.get('ME', []) for ae in match.get('AE', []) if ae.get('G') == 62], [])]:
+        for o in source:
+            try:
+                cote_f = float(o.get('C'))
+            except:
+                continue
+            if o.get('G') == 62 and o.get('T') == 13 and 1.399 <= cote_f <= 3:
+                totaux.append((team1, o.get('P', 0), o.get('C')))
+            elif o.get('G') == 62 and o.get('T') == 14 and 1.399 <= cote_f <= 3:
+                totaux.append((team2, o.get('P', 0), o.get('C')))
+    # Trie par valeur croissante de P
+    totaux_sorted = sorted(totaux, key=lambda x: float(x[1]) if x[1] is not None else 0)
+    for equipe, p, c in totaux_sorted:
+        conseils.append(f"Total buts {equipe} : plus de {p} (cote {c})")
     return conseils
 
 TEMPLATE = """<!DOCTYPE html>
