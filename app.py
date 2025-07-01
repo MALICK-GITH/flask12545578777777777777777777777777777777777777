@@ -607,9 +607,9 @@ def match_details(match_id):
                 <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.href);alert('Lien copié !');">Partager ce match</button>
             </div>
             <script>
-                const labels = { [repr(s['nom']) for s in stats] };
-                const data1 = { [float(s['s1']) if s['s1'].replace('.', '', 1).isdigit() else 0 for s in stats] };
-                const data2 = { [float(s['s2']) if s['s2'].replace('.', '', 1).isdigit() else 0 for s in stats] };
+                const labels = {[repr(s['nom']) for s in stats]};
+                const data1 = {[float(s['s1']) if s['s1'].replace('.', '', 1).isdigit() else 0 for s in stats]};
+                const data2 = {[float(s['s2']) if s['s2'].replace('.', '', 1).isdigit() else 0 for s in stats]};
                 new Chart(document.getElementById('statsChart'), {{
                     type: 'bar',
                     data: {{
@@ -622,9 +622,9 @@ def match_details(match_id):
                     options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
                 }});
                 // Timeline score
-                const timelineLabels = { [repr(t['label']) for t in timeline] };
-                const timelineS1 = { [int(t['s1']) if str(t['s1']).isdigit() else 0 for t in timeline] };
-                const timelineS2 = { [int(t['s2']) if str(t['s2']).isdigit() else 0 for t in timeline] };
+                const timelineLabels = {[repr(t['label']) for t in timeline]};
+                const timelineS1 = {[int(t['s1']) if str(t['s1']).isdigit() else 0 for t in timeline]};
+                const timelineS2 = {[int(t['s2']) if str(t['s2']).isdigit() else 0 for t in timeline]};
                 new Chart(document.getElementById('timelineChart'), {{
                     type: 'line',
                     data: {{
@@ -636,26 +636,26 @@ def match_details(match_id):
                     }},
                     options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
                 }});
-                let previousStatus = {};
-                function animateFinishedRows() {
+                let previousStatus = {{}};
+                function animateFinishedRows() {{
                     const rows = document.querySelectorAll('table tr');
-                    rows.forEach(row => {
+                    rows.forEach(row => {{
                         const cells = row.querySelectorAll('td');
-                        if (cells.length > 0) {
+                        if (cells.length > 0) {{
                             const status = cells[6]?.innerText || '';
                             const id = cells[0]?.innerText + cells[3]?.innerText;
-                            if (status.includes('Terminé')) {
-                                if (!previousStatus[id]) {
+                            if (status.includes('Terminé')) {{
+                                if (!previousStatus[id]) {{
                                     row.classList.add('row-finished-animate');
                                     setTimeout(() => row.classList.remove('row-finished-animate'), 2000);
-                                }
+                                }}
                                 previousStatus[id] = true;
-                            } else {
+                            }} else {{
                                 previousStatus[id] = false;
-                            }
-                        }
-                    });
-                }
+                            }}
+                        }}
+                    }});
+                }}
                 setInterval(animateFinishedRows, 2000);
                 document.addEventListener('DOMContentLoaded', animateFinishedRows);
             </script>
