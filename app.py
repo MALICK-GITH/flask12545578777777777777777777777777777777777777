@@ -295,6 +295,9 @@ def home():
                 # Prédiction ML
                 prediction_ml = predict_ml(team1, team2, score1, score2)
 
+                # Ajout de la fonction de conseils sur les autres marchés
+                conseils = predire_options(match)
+
                 data.append({
                     "team1": team1,
                     "team2": team2,
@@ -314,7 +317,8 @@ def home():
                     "halftime_probs": halftime_probs,
                     "id": match.get("I", None),
                     "bet_options": bet_options,
-                    "prediction_ml": prediction_ml
+                    "prediction_ml": prediction_ml,
+                    "conseils": conseils
                 })
             except Exception as e:
                 print(f"Erreur lors du traitement d'un match: {e}")
@@ -858,6 +862,24 @@ def extract_bet_options(match):
             })
     return options
 
+def predire_options(match):
+    conseils = []
+    # Over/Under
+    for ae in match.get('AE', []):
+        if ae.get('G') == 17:
+            for me in ae.get('ME', []):
+                if me.get('T') in [9, 10]:  # Over/Under
+                    if me.get('C') and me.get('P') is not None:
+                        conseils.append(f"{'Plus' if me['T']==9 else 'Moins'} de {me['P']} buts (cote {me['C']})")
+    # Handicap
+    for ae in match.get('AE', []):
+        if ae.get('G') == 2:
+            for me in ae.get('ME', []):
+                if me.get('T') in [7, 8]:
+                    if me.get('C') and me.get('P') is not None:
+                        conseils.append(f"Handicap {'équipe 1' if me['T']==7 else 'équipe 2'} ({me['P']}) (cote {me['C']})")
+    return conseils
+
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
     <meta charset="utf-8">
@@ -993,20 +1015,24 @@ TEMPLATE = """<!DOCTYPE html>
             <td>{{m.sport}}</td><td>{{m.league}}</td>
             <td><span class='status-dot {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}'></span>{{m.status}}</td>
             <td>{{m.datetime}}</td>
-            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td>
+            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>
+              {{m.odds|join(" | ")}}<br>
+              <details style='font-size:12px;'>
+                <summary style='cursor:pointer;color:#2980b9;'>Autres options</summary>
+                <ul style='text-align:left;'>
+                  {% for opt in m.bet_options %}
+                    <li>{{opt.label}} : <b>{{opt.cote}}</b></li>
+                  {% endfor %}
+                </ul>
+              </details>
+              {% if m.conseils %}
+                <div style='margin-top:5px;font-size:12px;color:#27ae60;'>Conseils : {{ m.conseils|join(' / ') }}</div>
+              {% endif %}
+            </td>
             <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
             <td>{{m.halftime_odds|join(" | ")}}</td>
             <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
             <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
-                <details style='margin-top:5px;'>
-                  <summary style='cursor:pointer;font-size:13px;color:#2980b9;'>Options de paris</summary>
-                  <ul style='text-align:left;font-size:13px;'>
-                    {% for opt in m.bet_options %}
-                      <li>{{opt.label}} : <b>{{opt.cote}}</b></li>
-                    {% endfor %}
-                  </ul>
-                </details>
-            </td>
         </tr>
         {% endfor %}
     </table>
