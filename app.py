@@ -9,6 +9,10 @@ from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 import joblib
+import logging
+
+# Configuration du logger
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///matchs.db'
