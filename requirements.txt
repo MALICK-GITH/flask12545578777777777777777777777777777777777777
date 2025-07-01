@@ -1,6 +1,8 @@
 Flask
-requests 
-flask_sqlalchemy 
+requests
+flask_sqlalchemy
+flask_login
 scikit-learn
-pandas 
-openpyxl 
+pandas
+openpyxl
+joblib
