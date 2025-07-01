@@ -868,16 +868,22 @@ def predire_options(match):
     for ae in match.get('AE', []):
         if ae.get('G') == 17:
             for me in ae.get('ME', []):
-                if me.get('T') in [9, 10]:  # Over/Under
-                    if me.get('C') and me.get('P') is not None:
-                        conseils.append(f"{'Plus' if me['T']==9 else 'Moins'} de {me['P']} buts (cote {me['C']})")
+                try:
+                    cote_f = float(me.get('C'))
+                except:
+                    continue
+                if me.get('T') in [9, 10] and 1.399 <= cote_f <= 3 and me.get('P') is not None:
+                    conseils.append(f"{'Plus' if me['T']==9 else 'Moins'} de {me['P']} buts (cote {me['C']})")
     # Handicap
     for ae in match.get('AE', []):
         if ae.get('G') == 2:
             for me in ae.get('ME', []):
-                if me.get('T') in [7, 8]:
-                    if me.get('C') and me.get('P') is not None:
-                        conseils.append(f"Handicap {'équipe 1' if me['T']==7 else 'équipe 2'} ({me['P']}) (cote {me['C']})")
+                try:
+                    cote_f = float(me.get('C'))
+                except:
+                    continue
+                if me.get('T') in [7, 8] and 1.399 <= cote_f <= 3 and me.get('P') is not None:
+                    conseils.append(f"Handicap {'équipe 1' if me['T']==7 else 'équipe 2'} ({me['P']}) (cote {me['C']})")
     return conseils
 
 TEMPLATE = """<!DOCTYPE html>
@@ -924,9 +930,8 @@ TEMPLATE = """<!DOCTYPE html>
             td:nth-of-type(9):before { content: 'Température'; }
             td:nth-of-type(10):before { content: 'Humidité'; }
             td:nth-of-type(11):before { content: 'Cotes'; }
-            td:nth-of-type(12):before { content: 'Prédiction'; }
-            td:nth-of-type(13):before { content: 'Cotes mi-temps'; }
-            td:nth-of-type(14):before { content: 'Prédiction mi-temps'; }
+            td:nth-of-type(12):before { content: 'Cotes mi-temps'; }
+            td:nth-of-type(13):before { content: 'Prédiction mi-temps'; }
         }
         /* Loader */
         #loader { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center; }
@@ -1005,7 +1010,8 @@ TEMPLATE = """<!DOCTYPE html>
         <tr>
             <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
             <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
-            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Cotes mi-temps</th><th>Prédiction mi-temps</th><th>Détails</th>
+            <th>Température</th><th>Humidité</th><th>Cotes</th>
+            <th>Cotes mi-temps</th><th>Prédiction mi-temps</th><th>Détails</th>
         </tr>
         {% for m in data %}
         <tr>
@@ -1029,14 +1035,7 @@ TEMPLATE = """<!DOCTYPE html>
                   {% endfor %}
                 </ul>
               </details>
-              <div style='margin-top:5px;font-size:11px;color:#888;'>
-                <i>Le marché 1X2 (victoire/nul/victoire) est risqué, privilégiez les conseils ci-dessus.</i>
-              </div>
-              <div style='margin-top:2px;font-size:11px;color:#bbb;'>
-                <span style='text-decoration:line-through;'>{{m.prediction}}</span>
-              </div>
             </td>
-            <td>{{m.prediction}}<div class='probs'>{% for p in m.all_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div><div style="font-size:12px;color:#2980b9;">{{m.prediction_ml}}</div></td>
             <td>{{m.halftime_odds|join(" | ")}}</td>
             <td>{{m.halftime_prediction}}<div class='probs'>{% for p in m.halftime_probs %}<span class='{% if loop.index0 == 0 %}prob-high{% elif loop.index0 == 1 %}prob-mid{% else %}prob-low{% endif %}'>{{p.type}}: {{p.prob}}</span> {% if not loop.last %}| {% endif %}{% endfor %}</div></td>
             <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a> <button class="share-btn" onclick="navigator.clipboard.writeText(window.location.origin+'/match/{{m.id}}');alert('Lien copié !');">Partager</button>{% else %}–{% endif %}
