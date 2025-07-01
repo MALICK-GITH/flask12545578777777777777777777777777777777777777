@@ -209,7 +209,7 @@ def home():
                     continue
 
                 match_ts = match.get("S", 0)
-                match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
+                match_time = datetime.datetime.fromtimestamp(match_ts, datetime.timezone.utc).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
 
                 # --- Cotes ---
                 odds_data = []
@@ -849,33 +849,33 @@ TEMPLATE = """<!DOCTYPE html>
     </script>
 </head><body>
     <div style="text-align:right;padding:7px 10px;"><button onclick="toggleDark()" class="neon-btn">🌓 Mode sombre</button></div><div class="container">
-        <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
+    <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
         <div style="text-align:center; color:#888; font-size:13px; margin-bottom:10px;">La prédiction est basée sur les cotes converties en probabilités implicites.</div>
-        <form method="get">
-            <label>Sport :
-                <select name="sport" onchange="this.form.submit()">
-                    <option value="">Tous</option>
-                    {% for s in sports %}
-                        <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>Ligue :
-                <select name="league" onchange="this.form.submit()">
-                    <option value="">Toutes</option>
-                    {% for l in leagues %}
-                        <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
-                    {% endfor %}
-                </select>
-            </label>
-            <label>Statut :
-                <select name="status" onchange="this.form.submit()">
-                    <option value="">Tous</option>
-                    <option value="live" {% if selected_status == "live" %}selected{% endif %}>En direct</option>
-                    <option value="upcoming" {% if selected_status == "upcoming" %}selected{% endif %}>À venir</option>
-                    <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
-                </select>
-            </label>
+    <form method="get">
+        <label>Sport :
+            <select name="sport" onchange="this.form.submit()">
+                <option value="">Tous</option>
+                {% for s in sports %}
+                    <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Ligue :
+            <select name="league" onchange="this.form.submit()">
+                <option value="">Toutes</option>
+                {% for l in leagues %}
+                    <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Statut :
+            <select name="status" onchange="this.form.submit()">
+                <option value="">Tous</option>
+                <option value="live" {% if selected_status == "live" %}selected{% endif %}>En direct</option>
+                <option value="upcoming" {% if selected_status == "upcoming" %}selected{% endif %}>À venir</option>
+                <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
+            </select>
+        </label>
             <label>Trier par :
                 <select name="sort" onchange="this.form.submit()">
                     <option value="datetime" {% if request.args.get('sort', 'datetime') == 'datetime' %}selected{% endif %}>Heure</option>
@@ -883,30 +883,30 @@ TEMPLATE = """<!DOCTYPE html>
                     <option value="cote" {% if request.args.get('sort') == 'cote' %}selected{% endif %}>Cote</option>
                 </select>
             </label>
+    </form>
+    <div class="pagination">
+        <form method="get" style="display:inline;">
+            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+                <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
+            <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %}>Page précédente</button>
         </form>
-        <div class="pagination">
-            <form method="get" style="display:inline;">
-                <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
-                <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
-                <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+        <span>Page {{ page }} / {{ total_pages }}</span>
+        <form method="get" style="display:inline;">
+            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
                 <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
-                <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %}>Page précédente</button>
-            </form>
-            <span>Page {{ page }} / {{ total_pages }}</span>
-            <form method="get" style="display:inline;">
-                <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
-                <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
-                <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
-                <input type="hidden" name="sort" value="{{ request.args.get('sort', 'datetime') }}">
-                <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %}>Page suivante</button>
-            </form>
-        </div>
+            <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %}>Page suivante</button>
+        </form>
+    </div>
         <div style="text-align:right;max-width:98%;margin:auto 0 10px auto;">
             <a href="/export_csv" style="background:#27ae60;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;">Exporter CSV</a>
             <a href="/historique" style="background:#2980b9;color:#fff;padding:7px 16px;border-radius:4px;text-decoration:none;font-size:15px;margin-left:10px;">Historique</a>
         </div>
         <div class="table-wrap">
-            {% for m in data %}
+        {% for m in data %}
             <div class="match-card">
                 <div class="match-header">
                     <div class="match-teams">
@@ -986,7 +986,7 @@ TEMPLATE = """<!DOCTYPE html>
                     <b>Probabilités :</b> {{m.all_probs_str}}
                 </div>
             </div>
-            {% endfor %}
+        {% endfor %}
         </div>
     </div>
     <script>
