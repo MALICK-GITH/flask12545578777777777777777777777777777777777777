@@ -1146,5 +1146,27 @@ with app.app_context():
     train_ml_model()
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "verif_conseils":
+        import json
+        with open("Get1x2_VZip.json", encoding="utf-8") as f:
+            data = json.load(f)
+        matchs = data.get("Value", [])
+        total = 0
+        sans_conseil = 0
+        for match in matchs:
+            team1 = match.get('O1', 'Équipe 1')
+            team2 = match.get('O2', 'Équipe 2')
+            conseils = predire_options(match)
+            print(f"\n=== {team1} vs {team2} ===")
+            if conseils:
+                for c in conseils:
+                    print(f"  - {c}")
+            else:
+                print("  Aucun conseil généré pour ce match !")
+                sans_conseil += 1
+            total += 1
+        print(f"\n{total} matchs analysés. {sans_conseil} sans aucun conseil.")
+    else:
+        port = int(os.environ.get("PORT", 5000))
+        app.run(host="0.0.0.0", port=port)
