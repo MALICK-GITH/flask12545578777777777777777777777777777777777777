@@ -5,4 +5,3 @@ flask_login
 scikit-learn
 pandas
 openpyxl
-joblib
