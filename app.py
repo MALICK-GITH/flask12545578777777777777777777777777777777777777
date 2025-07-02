@@ -277,13 +277,13 @@ def match_details(match_id):
             if match.get('AE'):
                 for ae in match['AE']:
                     g = ae.get('G')
-                    g_label = {2: 'Handicap', 17: 'Over/Under'}.get(g, f'Groupe {g}')
-                    html += f'<b>{g_label} :</b><ul>'
+                    html += f'<ul>'
                     for me in ae.get('ME', []):
                         p = me.get('P', '')
                         t = me.get('T', '')
                         c = me.get('C', '–')
-                        html += f'<li>Option T={t} P={p} : {c}</li>'
+                        traduction = traduire_option_pari(g, t, p)
+                        html += f'<li>{traduction} : {c}</li>'
                     html += '</ul>'
             return html
         # Statut officiel pour la page de détails
@@ -406,6 +406,52 @@ def paris_alternatifs():
         html += "</ul>"
     if not predictions:
         html += "<p>Aucun pari alternatif dans la fourchette demandée.</p>"
+    return html
+
+@app.route('/paris-alternatifs-proba')
+def paris_alternatifs_proba():
+    min_cote = float(request.args.get('min_cote', 1.399))
+    max_cote = float(request.args.get('max_cote', 3.0))
+    seuil_proba = float(request.args.get('seuil_proba', 0.33))
+    api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
+    response = requests.get(api_url)
+    donnees = response.json()
+    predictions = []
+    for match in donnees.get("Value", []):
+        equipe1 = match.get("O1", "Équipe 1")
+        equipe2 = match.get("O2", "Équipe 2")
+        label = f"{equipe1} vs {equipe2}"
+        suggestions = []
+        for ae in match.get("AE", []):
+            type_pari = ae.get("G")
+            if type_pari == 1:
+                continue  # Ignore 1X2
+            for option in ae.get("ME", []):
+                cote = option.get("C")
+                if cote and min_cote <= cote <= max_cote:
+                    proba = round(1 / cote, 3)
+                    if proba >= seuil_proba:
+                        suggestions.append({
+                            "type_pari": type_pari,
+                            "paramètre": option.get("P"),
+                            "résultat": option.get("T"),
+                            "cote": cote,
+                            "proba_estimée": proba,
+                            "traduction": traduire_option_pari(type_pari, option.get("T"), option.get("P"))
+                        })
+        if suggestions:
+            predictions.append({
+                "match": label,
+                "prédictions_ae": suggestions
+            })
+    html = "<h2>Paris alternatifs filtrés (hors 1X2, proba ≥ seuil)</h2>"
+    for match in predictions:
+        html += f"<h4>🎯 {match['match']}</h4><ul>"
+        for pari in match["prédictions_ae"]:
+            html += (f"<li>🔹 {pari['traduction']} | Cote: {pari['cote']} | Proba: {pari['proba_estimée']}</li>")
+        html += "</ul>"
+    if not predictions:
+        html += "<p>Aucun pari alternatif dans la fourchette demandée et le seuil de proba.</p>"
     return html
 
 TEMPLATE = """<!DOCTYPE html>
