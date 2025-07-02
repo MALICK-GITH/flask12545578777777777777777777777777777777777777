@@ -287,7 +287,7 @@ def match_details(match_id):
                     html += '</ul>'
             return html
         def render_predictor(match):
-            html = '<h3>Prédicteur alternatives (Handicap & Over/Under)</h3><ul>'
+            predictions = []
             for ae in match.get('AE', []):
                 g = ae.get('G')
                 if g not in [2, 17]:
@@ -299,8 +299,22 @@ def match_details(match_id):
                     if c:
                         traduction = traduire_option_pari(g, t, p)
                         proba = round(1/float(c), 3) if c else '?' 
-                        html += f'<li>{traduction} | Cote: {c} | Proba: {proba}</li>'
-            html += '</ul>'
+                        predictions.append({
+                            'traduction': traduction,
+                            'cote': c,
+                            'proba': proba
+                        })
+            html = '<h3>Prédicteur alternatives (Handicap & Over/Under)</h3>'
+            if predictions:
+                # Choix : la plus forte probabilité (donc la plus basse cote)
+                best = max(predictions, key=lambda x: x['proba'])
+                html += f'<div style="background:#27ae60;color:white;padding:8px 15px;border-radius:8px;font-weight:bold;margin-bottom:10px;">Meilleure prédiction : {best["traduction"]} | Cote: {best["cote"]} | Proba: {best["proba"]}</div>'
+                html += '<ul>'
+                for pred in predictions:
+                    html += f'<li>{pred["traduction"]} | Cote: {pred["cote"]} | Proba: {pred["proba"]}</li>'
+                html += '</ul>'
+            else:
+                html += '<p>Aucune prédiction alternative disponible.</p>'
             return html
         # Statut officiel pour la page de détails
         statut_officiel = match.get('TN') or match.get('TNS')
