@@ -142,17 +142,6 @@ def home():
                 # --- Statut officiel ---
                 statut_officiel = match.get('TN') or match.get('TNS')
 
-                # --- Heure de fin estimée ---
-                heure_fin = "–"
-                if match_ts and statut.startswith("En cours"):
-                    if sport == "Football":
-                        fin_ts = match_ts + 2*3600  # 2h
-                    elif sport == "Basketball":
-                        fin_ts = match_ts + 90*60  # 1h30
-                    else:
-                        fin_ts = match_ts + 2*3600
-                    heure_fin = datetime.datetime.utcfromtimestamp(fin_ts).strftime('%d/%m/%Y %H:%M')
-
                 data.append({
                     "team1": team1,
                     "team2": team2,
@@ -167,7 +156,6 @@ def home():
                     "humid": humid,
                     "odds": formatted_odds,
                     "prediction": prediction,
-                    "heure_fin": heure_fin,
                     "id": match.get("I", None)
                 })
             except Exception as e:
@@ -512,7 +500,7 @@ TABLEAU_TEMPLATE = """
     <tr>
         <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
         <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
-        <th>Température</th><th>Humidité</th><th>Cotes</th><th>Heure fin estimée</th><th>Détails</th>
+        <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Détails</th>
     </tr>
     {% for m in data %}
     <tr>
@@ -527,7 +515,7 @@ TABLEAU_TEMPLATE = """
             {% endif %}
             <br><small style="color:#888">{{m.status_officiel}}</small>
         </td><td>{{m.datetime}}</td>
-        <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.heure_fin}}</td>
+        <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
         <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a>{% else %}–{% endif %}</td>
     </tr>
     {% endfor %}
@@ -541,6 +529,7 @@ def tableau_matches():
         selected_league = request.args.get("league", "").strip()
         selected_status = request.args.get("status", "").strip()
         page = int(request.args.get('page', 1))
+        # Copie de la logique de la route home() pour filtrer et paginer les données
         api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
@@ -649,16 +638,6 @@ def tableau_matches():
                 temp = next((item["V"] for item in meteo_data if item.get("K") == 9), "–")
                 humid = next((item["V"] for item in meteo_data if item.get("K") == 27), "–")
                 statut_officiel = match.get('TN') or match.get('TNS')
-                # --- Heure de fin estimée ---
-                heure_fin = "–"
-                if match_ts and statut.startswith("En cours"):
-                    if sport == "Football":
-                        fin_ts = match_ts + 2*3600  # 2h
-                    elif sport == "Basketball":
-                        fin_ts = match_ts + 90*60  # 1h30
-                    else:
-                        fin_ts = match_ts + 2*3600
-                    heure_fin = datetime.datetime.utcfromtimestamp(fin_ts).strftime('%d/%m/%Y %H:%M')
                 data.append({
                     "team1": team1,
                     "team2": team2,
@@ -672,7 +651,7 @@ def tableau_matches():
                     "temp": temp,
                     "humid": humid,
                     "odds": formatted_odds,
-                    "heure_fin": heure_fin,
+                    "prediction": prediction,
                     "id": match.get("I", None)
                 })
             except Exception as e:
@@ -682,8 +661,6 @@ def tableau_matches():
         page = max(1, page)
         data_paginated = data[(page-1)*per_page:page*per_page]
         return render_template_string(TABLEAU_TEMPLATE, data=data_paginated)
-    except Exception as e:
-        return f"Erreur : {e}"
 
 # --- Adapter le TEMPLATE principal pour AJAX ---
 TEMPLATE = TEMPLATE.replace(
@@ -696,6 +673,7 @@ TEMPLATE = TEMPLATE.replace(
     '</body>',
     '''<script>
     setInterval(function() {
+        // On garde les filtres et la page courante
         let params = new URLSearchParams(window.location.search);
         fetch('/tableau-matches?' + params.toString())
           .then(response => response.text())
@@ -703,7 +681,7 @@ TEMPLATE = TEMPLATE.replace(
             document.getElementById('tableau-matches').innerHTML = html;
           });
     }, 5000);
-    </script>\n</body>'''
+    </script>\n</body>''
 )
 
 @app.route('/details-match-ajax/<int:match_id>')
@@ -845,8 +823,6 @@ def details_match_ajax(match_id):
                 }});
             </script>
         '''
-    except Exception as e:
-        return f"Erreur lors de la récupération des détails du match : {e}"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
