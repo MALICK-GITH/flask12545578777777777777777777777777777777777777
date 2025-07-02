@@ -258,6 +258,30 @@ def match_details(match_id):
                 "2": f"{team2} gagne",
                 "X": "Match nul"
             }.get(best["type"], "–")
+        # Section toutes les options de paris
+        def render_all_options(match):
+            html = '<h3>Toutes les options de paris</h3>'
+            # Cotes principales (E)
+            if match.get('E'):
+                html += '<b>1X2 :</b><ul>'
+                for o in match['E']:
+                    t = o.get('T')
+                    label = {1: 'Victoire ' + team1, 2: 'Match nul', 3: 'Victoire ' + team2}.get(t, f'Option {t}')
+                    html += f'<li>{label} : {o.get("C", "–")}</li>'
+                html += '</ul>'
+            # Cotes alternatives (AE)
+            if match.get('AE'):
+                for ae in match['AE']:
+                    g = ae.get('G')
+                    g_label = {2: 'Handicap', 17: 'Over/Under'}.get(g, f'Groupe {g}')
+                    html += f'<b>{g_label} :</b><ul>'
+                    for me in ae.get('ME', []):
+                        p = me.get('P', '')
+                        t = me.get('T', '')
+                        c = me.get('C', '–')
+                        html += f'<li>Option T={t} P={p} : {c}</li>'
+                    html += '</ul>'
+            return html
         # HTML avec graphiques Chart.js CDN
         return f'''
         <!DOCTYPE html>
@@ -288,6 +312,7 @@ def match_details(match_id):
                     {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td></tr>' for s in stats)}
                 </table>
                 <canvas id="statsChart" height="200"></canvas>
+                {render_all_options(match)}
             </div>
             <script>
                 const labels = { [repr(s['nom']) for s in stats] };
@@ -309,6 +334,43 @@ def match_details(match_id):
         '''
     except Exception as e:
         return f"Erreur lors de l'affichage des détails du match : {e}"
+
+@app.route('/paris-alternatifs')
+def paris_alternatifs():
+    min_cote = float(request.args.get('min_cote', 1.399))
+    max_cote = float(request.args.get('max_cote', 3.0))
+    api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
+    response = requests.get(api_url)
+    data = response.json()
+    predictions = []
+    for match in data.get("Value", []):
+        match_info = {
+            "match": f"{match.get('O1', '–')} vs {match.get('O2', '–')}",
+            "paris_predits": []
+        }
+        for ae in match.get("AE", []):
+            g = ae.get("G")
+            for me in ae.get("ME", []):
+                cote = me.get("C")
+                if cote and min_cote <= cote <= max_cote:
+                    match_info["paris_predits"].append({
+                        "type_pari": g,
+                        "parametre": me.get("P"),
+                        "resultat": me.get("T"),
+                        "cote": cote
+                    })
+        if match_info["paris_predits"]:
+            predictions.append(match_info)
+    # Affichage HTML simple
+    html = "<h2>Paris alternatifs filtrés</h2>"
+    for r in predictions:
+        html += f"<h4>📌 Match : {r['match']}</h4><ul>"
+        for pari in r['paris_predits']:
+            html += f"<li>🔹 Type: {pari['type_pari']} | Résultat: {pari['resultat']} | Paramètre: {pari['parametre']} | Cote: {pari['cote']}</li>"
+        html += "</ul>"
+    if not predictions:
+        html += "<p>Aucun pari alternatif dans la fourchette demandée.</p>"
+    return html
 
 TEMPLATE = """<!DOCTYPE html>
 <html><head>
