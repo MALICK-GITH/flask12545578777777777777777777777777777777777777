@@ -348,10 +348,8 @@ def match_details(match_id):
         return f"Erreur lors de l'affichage des détails du match : {e}"
 
 def traduire_option_pari(type_pari, resultat, parametre):
-    # Type
     type_map = {2: 'Handicap', 17: 'Over/Under'}
     type_str = type_map.get(type_pari, f'Groupe {type_pari}')
-    # Résultat et paramètre
     if type_pari == 2:  # Handicap
         if resultat == 7:
             return f"{type_str} équipe 2 ({parametre:+})"
@@ -384,6 +382,8 @@ def paris_alternatifs():
         }
         for ae in match.get("AE", []):
             g = ae.get("G")
+            if g == 1:
+                continue  # Ignore les 1X2
             for me in ae.get("ME", []):
                 cote = me.get("C")
                 if cote and min_cote <= cote <= max_cote:
@@ -393,8 +393,7 @@ def paris_alternatifs():
                     })
         if match_info["paris_predits"]:
             predictions.append(match_info)
-    # Affichage HTML simple
-    html = "<h2>Paris alternatifs filtrés</h2>"
+    html = "<h2>Paris alternatifs filtrés (hors 1X2)</h2>"
     for r in predictions:
         html += f"<h4>📌 Match : {r['match']}</h4><ul>"
         for pari in r['paris_predits']:
@@ -409,6 +408,7 @@ TEMPLATE = """<!DOCTYPE html>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Matchs en direct</title>
+    <meta http-equiv="refresh" content="7">
     <style>
         body { font-family: Arial; padding: 20px; background: #f4f4f4; }
         h2 { text-align: center; }
@@ -512,7 +512,16 @@ TEMPLATE = """<!DOCTYPE html>
         {% for m in data %}
         <tr>
             <td>{{m.team1}}</td><td>{{m.score1}}</td><td>{{m.score2}}</td><td>{{m.team2}}</td>
-            <td>{{m.sport}}</td><td>{{m.league}}</td><td>{{m.status}}<br><small style="color:#888">{{m.status_officiel}}</small></td><td>{{m.datetime}}</td>
+            <td>{{m.sport}}</td><td>{{m.league}}</td><td>
+                {% if m.status.startswith('En cours') %}
+                    <span style="background:#27ae60;color:white;padding:3px 10px;border-radius:8px;font-weight:bold;">{{m.status}}</span>
+                {% elif m.status == 'Terminé' %}
+                    <span style="background:#c0392b;color:white;padding:3px 10px;border-radius:8px;font-weight:bold;">{{m.status}}</span>
+                {% else %}
+                    <span style="background:#f39c12;color:white;padding:3px 10px;border-radius:8px;font-weight:bold;">{{m.status}}</span>
+                {% endif %}
+                <br><small style="color:#888">{{m.status_officiel}}</small>
+            </td><td>{{m.datetime}}</td>
             <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
             <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a>{% else %}–{% endif %}</td>
         </tr>
