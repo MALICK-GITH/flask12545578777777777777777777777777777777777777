@@ -541,7 +541,6 @@ def tableau_matches():
         selected_league = request.args.get("league", "").strip()
         selected_status = request.args.get("status", "").strip()
         page = int(request.args.get('page', 1))
-        # Copie de la logique de la route home() pour filtrer et paginer les données
         api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
@@ -683,6 +682,8 @@ def tableau_matches():
         page = max(1, page)
         data_paginated = data[(page-1)*per_page:page*per_page]
         return render_template_string(TABLEAU_TEMPLATE, data=data_paginated)
+    except Exception as e:
+        return f"Erreur : {e}"
 
 # --- Adapter le TEMPLATE principal pour AJAX ---
 TEMPLATE = TEMPLATE.replace(
@@ -695,7 +696,6 @@ TEMPLATE = TEMPLATE.replace(
     '</body>',
     '''<script>
     setInterval(function() {
-        // On garde les filtres et la page courante
         let params = new URLSearchParams(window.location.search);
         fetch('/tableau-matches?' + params.toString())
           .then(response => response.text())
@@ -703,7 +703,7 @@ TEMPLATE = TEMPLATE.replace(
             document.getElementById('tableau-matches').innerHTML = html;
           });
     }, 5000);
-    </script>\n</body>''
+    </script>\n</body>'''
 )
 
 @app.route('/details-match-ajax/<int:match_id>')
@@ -845,6 +845,8 @@ def details_match_ajax(match_id):
                 }});
             </script>
         '''
+    except Exception as e:
+        return f"Erreur lors de la récupération des détails du match : {e}"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
