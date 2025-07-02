@@ -12,7 +12,7 @@ def home():
         selected_league = request.args.get("league", "").strip()
         selected_status = request.args.get("status", "").strip()
 
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
 
@@ -22,6 +22,23 @@ def home():
 
         for match in matches:
             try:
+                # Ajout des clés manquantes pour compatibilité
+                required_keys = {
+                    "O1": "–",
+                    "O2": "–",
+                    "LE": "–",
+                    "AE": [],
+                    "MIS": [],
+                    "I": None,
+                    "T": None,
+                    "TN": "",
+                    "TNS": "",
+                    "SE": "",
+                    "SN": ""
+                }
+                for key, default in required_keys.items():
+                    if key not in match:
+                        match[key] = default
                 league = match.get("LE", "–")
                 team1 = match.get("O1", "–")
                 team2 = match.get("O2", "–")
@@ -183,7 +200,7 @@ def detect_sport(league_name):
 def match_details(match_id):
     try:
         # Récupérer les données de l'API (ou brute.json si besoin)
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
         match = next((m for m in matches if m.get("I") == match_id), None)
