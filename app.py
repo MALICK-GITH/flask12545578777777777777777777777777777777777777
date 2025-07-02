@@ -378,26 +378,31 @@ def paris_alternatifs():
     for match in data.get("Value", []):
         match_info = {
             "match": f"{match.get('O1', '–')} vs {match.get('O2', '–')}",
-            "paris_predits": []
+            "prédictions": []
         }
         for ae in match.get("AE", []):
-            g = ae.get("G")
-            if g == 1:
+            type_pari = ae.get("G")
+            if type_pari == 1:
                 continue  # Ignore les 1X2
             for me in ae.get("ME", []):
                 cote = me.get("C")
                 if cote and min_cote <= cote <= max_cote:
-                    match_info["paris_predits"].append({
-                        "traduction": traduire_option_pari(g, me.get("T"), me.get("P")),
-                        "cote": cote
-                    })
-        if match_info["paris_predits"]:
+                    prediction = {
+                        "type": type_pari,
+                        "parametre": me.get("P"),
+                        "résultat": me.get("T"),
+                        "cote": cote,
+                        "proba": round(1 / cote, 3),
+                        "traduction": traduire_option_pari(type_pari, me.get("T"), me.get("P"))
+                    }
+                    match_info["prédictions"].append(prediction)
+        if match_info["prédictions"]:
             predictions.append(match_info)
     html = "<h2>Paris alternatifs filtrés (hors 1X2)</h2>"
     for r in predictions:
         html += f"<h4>📌 Match : {r['match']}</h4><ul>"
-        for pari in r['paris_predits']:
-            html += f"<li>🔹 {pari['traduction']} | Cote: {pari['cote']}</li>"
+        for pari in r['prédictions']:
+            html += f"<li>🔹 {pari['traduction']} | Cote: {pari['cote']} | Proba: {pari['proba']}</li>"
         html += "</ul>"
     if not predictions:
         html += "<p>Aucun pari alternatif dans la fourchette demandée.</p>"
