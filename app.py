@@ -139,6 +139,9 @@ def home():
                 temp = next((item["V"] for item in meteo_data if item.get("K") == 9), "–")
                 humid = next((item["V"] for item in meteo_data if item.get("K") == 27), "–")
 
+                # --- Statut officiel ---
+                statut_officiel = match.get('TN') or match.get('TNS')
+
                 data.append({
                     "team1": team1,
                     "team2": team2,
@@ -147,6 +150,7 @@ def home():
                     "league": league,
                     "sport": sport,
                     "status": statut,
+                    "status_officiel": statut_officiel,
                     "datetime": match_time,
                     "temp": temp,
                     "humid": humid,
@@ -282,6 +286,8 @@ def match_details(match_id):
                         html += f'<li>Option T={t} P={p} : {c}</li>'
                     html += '</ul>'
             return html
+        # Statut officiel pour la page de détails
+        statut_officiel = match.get('TN') or match.get('TNS')
         # HTML avec graphiques Chart.js CDN
         return f'''
         <!DOCTYPE html>
@@ -304,6 +310,7 @@ def match_details(match_id):
                 <h2>{team1} vs {team2}</h2>
                 <p><b>Ligue :</b> {league} | <b>Sport :</b> {sport}</p>
                 <p><b>Score :</b> {score1} - {score2}</p>
+                <p><b>Statut officiel :</b> {statut_officiel or '–'}</p>
                 <p><b>Prédiction du bot :</b> {prediction}</p>
                 <p><b>Explication :</b> {explication}</p>
                 <h3>Statistiques principales</h3>
@@ -330,10 +337,37 @@ def match_details(match_id):
                     options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
                 }});
             </script>
+            <footer style="text-align:center; margin-top:40px; color:#888; font-size:15px;">
+              Créateur : <b>SOLITAIRE HACK</b><br>
+              Télégram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a><br>
+              Canal : <a href="https://t.me/SOLITAIREHACK" target="_blank">https://t.me/SOLITAIREHACK</a>
+            </footer>
         </body></html>
         '''
     except Exception as e:
         return f"Erreur lors de l'affichage des détails du match : {e}"
+
+def traduire_option_pari(type_pari, resultat, parametre):
+    # Type
+    type_map = {2: 'Handicap', 17: 'Over/Under'}
+    type_str = type_map.get(type_pari, f'Groupe {type_pari}')
+    # Résultat et paramètre
+    if type_pari == 2:  # Handicap
+        if resultat == 7:
+            return f"{type_str} équipe 2 ({parametre:+})"
+        elif resultat == 8:
+            return f"{type_str} équipe 1 ({parametre:+})"
+        else:
+            return f"{type_str} (T={resultat}, P={parametre})"
+    elif type_pari == 17:  # Over/Under
+        if resultat == 9:
+            return f"Plus de {parametre} buts"
+        elif resultat == 10:
+            return f"Moins de {parametre} buts"
+        else:
+            return f"{type_str} (T={resultat}, P={parametre})"
+    else:
+        return f"{type_str} (T={resultat}, P={parametre})"
 
 @app.route('/paris-alternatifs')
 def paris_alternatifs():
@@ -354,9 +388,7 @@ def paris_alternatifs():
                 cote = me.get("C")
                 if cote and min_cote <= cote <= max_cote:
                     match_info["paris_predits"].append({
-                        "type_pari": g,
-                        "parametre": me.get("P"),
-                        "resultat": me.get("T"),
+                        "traduction": traduire_option_pari(g, me.get("T"), me.get("P")),
                         "cote": cote
                     })
         if match_info["paris_predits"]:
@@ -366,7 +398,7 @@ def paris_alternatifs():
     for r in predictions:
         html += f"<h4>📌 Match : {r['match']}</h4><ul>"
         for pari in r['paris_predits']:
-            html += f"<li>🔹 Type: {pari['type_pari']} | Résultat: {pari['resultat']} | Paramètre: {pari['parametre']} | Cote: {pari['cote']}</li>"
+            html += f"<li>🔹 {pari['traduction']} | Cote: {pari['cote']}</li>"
         html += "</ul>"
     if not predictions:
         html += "<p>Aucun pari alternatif dans la fourchette demandée.</p>"
@@ -480,12 +512,17 @@ TEMPLATE = """<!DOCTYPE html>
         {% for m in data %}
         <tr>
             <td>{{m.team1}}</td><td>{{m.score1}}</td><td>{{m.score2}}</td><td>{{m.team2}}</td>
-            <td>{{m.sport}}</td><td>{{m.league}}</td><td>{{m.status}}</td><td>{{m.datetime}}</td>
+            <td>{{m.sport}}</td><td>{{m.league}}</td><td>{{m.status}}<br><small style="color:#888">{{m.status_officiel}}</small></td><td>{{m.datetime}}</td>
             <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
             <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a>{% else %}–{% endif %}</td>
         </tr>
         {% endfor %}
     </table>
+    <footer style="text-align:center; margin-top:40px; color:#888; font-size:15px;">
+      Créateur : <b>SOLITAIRE HACK</b><br>
+      Télégram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a><br>
+      Canal : <a href="https://t.me/SOLITAIREHACK" target="_blank">https://t.me/SOLITAIREHACK</a>
+    </footer>
 </body></html>"""
 
 if __name__ == "__main__":
