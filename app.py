@@ -287,6 +287,8 @@ def match_details(match_id):
                     html += '</ul>'
             return html
         def render_predictor(match):
+            min_cote = 1.399
+            max_cote = 3.0
             predictions = []
             for ae in match.get('AE', []):
                 g = ae.get('G')
@@ -296,7 +298,7 @@ def match_details(match_id):
                     c = me.get('C')
                     t = me.get('T')
                     p = me.get('P')
-                    if c:
+                    if c and min_cote <= c <= max_cote:
                         traduction = traduire_option_pari(g, t, p)
                         proba = round(1/float(c), 3) if c else '?' 
                         predictions.append({
@@ -304,9 +306,9 @@ def match_details(match_id):
                             'cote': c,
                             'proba': proba
                         })
-            html = '<h3>Prédicteur alternatives (Handicap & Over/Under)</h3>'
+            html = '<h3>Prédicteur alternatives (Handicap & Over/Under, cotes 1.399 à 3)</h3>'
             if predictions:
-                # Choix : la plus forte probabilité (donc la plus basse cote)
+                # Mettre en avant la meilleure prédiction (plus forte proba)
                 best = max(predictions, key=lambda x: x['proba'])
                 html += f'<div style="background:#27ae60;color:white;padding:8px 15px;border-radius:8px;font-weight:bold;margin-bottom:10px;">Meilleure prédiction : {best["traduction"]} | Cote: {best["cote"]} | Proba: {best["proba"]}</div>'
                 html += '<ul>'
@@ -314,7 +316,7 @@ def match_details(match_id):
                     html += f'<li>{pred["traduction"]} | Cote: {pred["cote"]} | Proba: {pred["proba"]}</li>'
                 html += '</ul>'
             else:
-                html += '<p>Aucune prédiction alternative disponible.</p>'
+                html += '<p>Aucune prédiction alternative disponible dans la fourchette demandée.</p>'
             return html
         # Statut officiel pour la page de détails
         statut_officiel = match.get('TN') or match.get('TNS')
