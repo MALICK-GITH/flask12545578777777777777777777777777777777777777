@@ -286,6 +286,22 @@ def match_details(match_id):
                         html += f'<li>{traduction} : {c}</li>'
                     html += '</ul>'
             return html
+        def render_predictor(match):
+            html = '<h3>Prédicteur alternatives (Handicap & Over/Under)</h3><ul>'
+            for ae in match.get('AE', []):
+                g = ae.get('G')
+                if g not in [2, 17]:
+                    continue
+                for me in ae.get('ME', []):
+                    c = me.get('C')
+                    t = me.get('T')
+                    p = me.get('P')
+                    if c:
+                        traduction = traduire_option_pari(g, t, p)
+                        proba = round(1/float(c), 3) if c else '?' 
+                        html += f'<li>{traduction} | Cote: {c} | Proba: {proba}</li>'
+            html += '</ul>'
+            return html
         # Statut officiel pour la page de détails
         statut_officiel = match.get('TN') or match.get('TNS')
         # HTML avec graphiques Chart.js CDN
@@ -320,6 +336,7 @@ def match_details(match_id):
                 </table>
                 <canvas id="statsChart" height="200"></canvas>
                 {render_all_options(match)}
+                {render_predictor(match)}
             </div>
             <script>
                 const labels = { [repr(s['nom']) for s in stats] };
@@ -347,14 +364,20 @@ def match_details(match_id):
     except Exception as e:
         return f"Erreur lors de l'affichage des détails du match : {e}"
 
+def format_parametre(parametre):
+    try:
+        return f"{float(parametre):+g}"
+    except (TypeError, ValueError):
+        return str(parametre) if parametre is not None else "?"
+
 def traduire_option_pari(type_pari, resultat, parametre):
     type_map = {2: 'Handicap', 17: 'Over/Under'}
     type_str = type_map.get(type_pari, f'Groupe {type_pari}')
     if type_pari == 2:  # Handicap
         if resultat == 7:
-            return f"{type_str} équipe 2 ({parametre:+})"
+            return f"{type_str} équipe 2 ({format_parametre(parametre)})"
         elif resultat == 8:
-            return f"{type_str} équipe 1 ({parametre:+})"
+            return f"{type_str} équipe 1 ({format_parametre(parametre)})"
         else:
             return f"{type_str} (T={resultat}, P={parametre})"
     elif type_pari == 17:  # Over/Under
