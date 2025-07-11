@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string, jsonify
+from flask import Flask, request, render_template_string
 import requests
 import os
 import datetime
@@ -12,7 +12,7 @@ def home():
         selected_league = request.args.get("league", "").strip()
         selected_status = request.args.get("status", "").strip()
 
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
 
@@ -22,23 +22,6 @@ def home():
 
         for match in matches:
             try:
-                # Ajout des clés manquantes pour compatibilité
-                required_keys = {
-                    "O1": "–",
-                    "O2": "–",
-                    "LE": "–",
-                    "AE": [],
-                    "MIS": [],
-                    "I": None,
-                    "T": None,
-                    "TN": "",
-                    "TNS": "",
-                    "SE": "",
-                    "SN": ""
-                }
-                for key, default in required_keys.items():
-                    if key not in match:
-                        match[key] = default
                 league = match.get("LE", "–")
                 team1 = match.get("O1", "–")
                 team2 = match.get("O2", "–")
@@ -139,9 +122,6 @@ def home():
                 temp = next((item["V"] for item in meteo_data if item.get("K") == 9), "–")
                 humid = next((item["V"] for item in meteo_data if item.get("K") == 27), "–")
 
-                # --- Statut officiel ---
-                statut_officiel = match.get('TN') or match.get('TNS')
-
                 data.append({
                     "team1": team1,
                     "team2": team2,
@@ -150,7 +130,6 @@ def home():
                     "league": league,
                     "sport": sport,
                     "status": statut,
-                    "status_officiel": statut_officiel,
                     "datetime": match_time,
                     "temp": temp,
                     "humid": humid,
@@ -204,7 +183,7 @@ def detect_sport(league_name):
 def match_details(match_id):
     try:
         # Récupérer les données de l'API (ou brute.json si besoin)
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
         response = requests.get(api_url)
         matches = response.json().get("Value", [])
         match = next((m for m in matches if m.get("I") == match_id), None)
@@ -262,71 +241,12 @@ def match_details(match_id):
                 "2": f"{team2} gagne",
                 "X": "Match nul"
             }.get(best["type"], "–")
-        # Section toutes les options de paris
-        def render_all_options(match):
-            html = '<h3>Toutes les options de paris</h3>'
-            # Cotes principales (E)
-            if match.get('E'):
-                html += '<b>1X2 :</b><ul>'
-                for o in match['E']:
-                    t = o.get('T')
-                    label = {1: 'Victoire ' + team1, 2: 'Match nul', 3: 'Victoire ' + team2}.get(t, f'Option {t}')
-                    html += f'<li>{label} : {o.get("C", "–")}</li>'
-                html += '</ul>'
-            # Cotes alternatives (AE)
-            if match.get('AE'):
-                for ae in match['AE']:
-                    g = ae.get('G')
-                    html += f'<ul>'
-                    for me in ae.get('ME', []):
-                        p = me.get('P', '')
-                        t = me.get('T', '')
-                        c = me.get('C', '–')
-                        traduction = traduire_option_pari(g, t, p)
-                        html += f'<li>{traduction} : {c}</li>'
-                    html += '</ul>'
-            return html
-        def render_predictor(match):
-            min_cote = 1.399
-            max_cote = 3.0
-            predictions = []
-            for ae in match.get('AE', []):
-                g = ae.get('G')
-                if g not in [2, 17]:
-                    continue
-                for me in ae.get('ME', []):
-                    c = me.get('C')
-                    t = me.get('T')
-                    p = me.get('P')
-                    if c and min_cote <= c <= max_cote:
-                        traduction = traduire_option_pari(g, t, p)
-                        proba = round(1/float(c), 3) if c else '?' 
-                        predictions.append({
-                            'traduction': traduction,
-                            'cote': c,
-                            'proba': proba
-                        })
-            html = '<h3>Prédicteur alternatives (Handicap & Over/Under, cotes 1.399 à 3)</h3>'
-            if predictions:
-                # Mettre en avant la meilleure prédiction (plus forte proba)
-                best = max(predictions, key=lambda x: x['proba'])
-                html += f'<div style="background:#27ae60;color:white;padding:8px 15px;border-radius:8px;font-weight:bold;margin-bottom:10px;">Meilleure prédiction : {best["traduction"]} | Cote: {best["cote"]} | Proba: {best["proba"]}</div>'
-                html += '<ul>'
-                for pred in predictions:
-                    html += f'<li>{pred["traduction"]} | Cote: {pred["cote"]} | Proba: {pred["proba"]}</li>'
-                html += '</ul>'
-            else:
-                html += '<p>Aucune prédiction alternative disponible dans la fourchette demandée.</p>'
-            return html
-        # Statut officiel pour la page de détails
-        statut_officiel = match.get('TN') or match.get('TNS')
         # HTML avec graphiques Chart.js CDN
         return f'''
         <!DOCTYPE html>
         <html><head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <meta http-equiv="refresh" content="5">
             <title>Détails du match</title>
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
             <style>
@@ -343,7 +263,6 @@ def match_details(match_id):
                 <h2>{team1} vs {team2}</h2>
                 <p><b>Ligue :</b> {league} | <b>Sport :</b> {sport}</p>
                 <p><b>Score :</b> {score1} - {score2}</p>
-                <p><b>Statut officiel :</b> {statut_officiel or '–'}</p>
                 <p><b>Prédiction du bot :</b> {prediction}</p>
                 <p><b>Explication :</b> {explication}</p>
                 <h3>Statistiques principales</h3>
@@ -352,460 +271,7 @@ def match_details(match_id):
                     {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td></tr>' for s in stats)}
                 </table>
                 <canvas id="statsChart" height="200"></canvas>
-                <div id="details-match">
-                {details_match_ajax(match_id)}
-                </div>
-                <script>
-                setInterval(function() {{
-                    fetch('/details-match-ajax/{match_id}')
-                      .then(response => response.text())
-                      .then(html => {{
-                        document.getElementById('details-match').innerHTML = html;
-                      }});
-                }}, 5000);
-                </script>
             </div>
-            <footer style="text-align:center; margin-top:40px; color:#888; font-size:15px;">
-              Créateur : <b>SOLITAIRE HACK</b><br>
-              Télégram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a><br>
-              Canal : <a href="https://t.me/SOLITAIREHACK" target="_blank">https://t.me/SOLITAIREHACK</a>
-            </footer>
-        </body></html>
-        '''
-    except Exception as e:
-        return f"Erreur lors de l'affichage des détails du match : {e}"
-
-def format_parametre(parametre):
-    try:
-        return f"{float(parametre):+g}"
-    except (TypeError, ValueError):
-        return str(parametre) if parametre is not None else "?"
-
-def traduire_option_pari(type_pari, resultat, parametre):
-    type_map = {2: 'Handicap', 17: 'Over/Under'}
-    type_str = type_map.get(type_pari, f'Groupe {type_pari}')
-    if type_pari == 2:  # Handicap
-        if resultat == 7:
-            return f"{type_str} équipe 2 ({format_parametre(parametre)})"
-        elif resultat == 8:
-            return f"{type_str} équipe 1 ({format_parametre(parametre)})"
-        else:
-            return f"{type_str} (T={resultat}, P={parametre})"
-    elif type_pari == 17:  # Over/Under
-        if resultat == 9:
-            return f"Plus de {parametre} buts"
-        elif resultat == 10:
-            return f"Moins de {parametre} buts"
-        else:
-            return f"{type_str} (T={resultat}, P={parametre})"
-    else:
-        return f"{type_str} (T={resultat}, P={parametre})"
-
-# Fonction utilitaire pour ajouter le meta refresh sur les pages HTML simples
-def add_refresh(html):
-    if '<head>' in html:
-        return html.replace('<head>', '<head>\n<meta http-equiv="refresh" content="5">', 1)
-    return html
-
-@app.route('/paris-alternatifs-ajax')
-def paris_alternatifs_ajax():
-    min_cote = float(request.args.get('min_cote', 1.399))
-    max_cote = float(request.args.get('max_cote', 3.0))
-    api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
-    response = requests.get(api_url)
-    data = response.json()
-    predictions = []
-    for match in data.get("Value", []):
-        match_info = {
-            "match": f"{match.get('O1', '–')} vs {match.get('O2', '–')}",
-            "prédictions": []
-        }
-        for ae in match.get("AE", []):
-            type_pari = ae.get("G")
-            if type_pari == 1:
-                continue  # Ignore les 1X2
-            for me in ae.get("ME", []):
-                cote = me.get("C")
-                if cote and min_cote <= cote <= max_cote:
-                    prediction = {
-                        "type": type_pari,
-                        "parametre": me.get("P"),
-                        "résultat": me.get("T"),
-                        "cote": cote,
-                        "proba": round(1 / cote, 3),
-                        "traduction": traduire_option_pari(type_pari, me.get("T"), me.get("P"))
-                    }
-                    match_info["prédictions"].append(prediction)
-        if match_info["prédictions"]:
-            predictions.append(match_info)
-    html = "<h2>Paris alternatifs filtrés (hors 1X2)</h2>"
-    for r in predictions:
-        html += f"<h4>📌 Match : {r['match']}</h4><ul>"
-        for pari in r['prédictions']:
-            html += f"<li>🔹 {pari['traduction']} | Cote: {pari['cote']} | Proba: {pari['proba']}</li>"
-        html += "</ul>"
-    if not predictions:
-        html += "<p>Aucun pari alternatif dans la fourchette demandée.</p>"
-    return html
-
-@app.route('/paris-alternatifs-proba-ajax')
-def paris_alternatifs_proba_ajax():
-    min_cote = float(request.args.get('min_cote', 1.399))
-    max_cote = float(request.args.get('max_cote', 3.0))
-    seuil_proba = float(request.args.get('seuil_proba', 0.33))
-    api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
-    response = requests.get(api_url)
-    donnees = response.json()
-    predictions = []
-    for match in donnees.get("Value", []):
-        equipe1 = match.get("O1", "Équipe 1")
-        equipe2 = match.get("O2", "Équipe 2")
-        label = f"{equipe1} vs {equipe2}"
-        suggestions = []
-        for ae in match.get("AE", []):
-            type_pari = ae.get("G")
-            if type_pari == 1:
-                continue  # Ignore 1X2
-            for option in ae.get("ME", []):
-                cote = option.get("C")
-                if cote and min_cote <= cote <= max_cote:
-                    proba = round(1 / cote, 3)
-                    if proba >= seuil_proba:
-                        suggestions.append({
-                            "type_pari": type_pari,
-                            "paramètre": option.get("P"),
-                            "résultat": option.get("T"),
-                            "cote": cote,
-                            "proba_estimée": proba,
-                            "traduction": traduire_option_pari(type_pari, option.get("T"), option.get("P"))
-                        })
-        if suggestions:
-            predictions.append({
-                "match": label,
-                "prédictions_ae": suggestions
-            })
-    html = "<h2>Paris alternatifs filtrés (hors 1X2, proba ≥ seuil)</h2>"
-    for match in predictions:
-        html += f"<h4>🎯 {match['match']}</h4><ul>"
-        for pari in match["prédictions_ae"]:
-            html += (f"<li>🔹 {pari['traduction']} | Cote: {pari['cote']} | Proba: {pari['proba_estimée']}</li>")
-        html += "</ul>"
-    if not predictions:
-        html += "<p>Aucun pari alternatif dans la fourchette demandée et le seuil de proba.</p>"
-    return html
-
-# Nouveau template pour juste le tableau (pour AJAX)
-TABLEAU_TEMPLATE = """
-<table>
-    <tr>
-        <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
-        <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
-        <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Détails</th>
-    </tr>
-    {% for m in data %}
-    <tr>
-        <td>{{m.team1}}</td><td>{{m.score1}}</td><td>{{m.score2}}</td><td>{{m.team2}}</td>
-        <td>{{m.sport}}</td><td>{{m.league}}</td><td>
-            {% if m.status.startswith('En cours') %}
-                <span style="background:#27ae60;color:white;padding:3px 10px;border-radius:8px;font-weight:bold;">{{m.status}}</span>
-            {% elif m.status == 'Terminé' %}
-                <span style="background:#c0392b;color:white;padding:3px 10px;border-radius:8px;font-weight:bold;">{{m.status}}</span>
-            {% else %}
-                <span style="background:#f39c12;color:white;padding:3px 10px;border-radius:8px;font-weight:bold;">{{m.status}}</span>
-            {% endif %}
-            <br><small style="color:#888">{{m.status_officiel}}</small>
-        </td><td>{{m.datetime}}</td>
-        <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
-        <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a>{% else %}–{% endif %}</td>
-    </tr>
-    {% endfor %}
-</table>
-"""
-
-@app.route('/tableau-matches')
-def tableau_matches():
-    try:
-        selected_sport = request.args.get("sport", "").strip()
-        selected_league = request.args.get("league", "").strip()
-        selected_status = request.args.get("status", "").strip()
-        page = int(request.args.get('page', 1))
-        # Copie de la logique de la route home() pour filtrer et paginer les données
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
-        response = requests.get(api_url)
-        matches = response.json().get("Value", [])
-        data = []
-        sports_detected = set()
-        leagues_detected = set()
-        for match in matches:
-            try:
-                required_keys = {
-                    "O1": "–",
-                    "O2": "–",
-                    "LE": "–",
-                    "AE": [],
-                    "MIS": [],
-                    "I": None,
-                    "T": None,
-                    "TN": "",
-                    "TNS": "",
-                    "SE": "",
-                    "SN": ""
-                }
-                for key, default in required_keys.items():
-                    if key not in match:
-                        match[key] = default
-                league = match.get("LE", "–")
-                team1 = match.get("O1", "–")
-                team2 = match.get("O2", "–")
-                sport = detect_sport(league).strip()
-                sports_detected.add(sport)
-                leagues_detected.add(league)
-                score1 = match.get("SC", {}).get("FS", {}).get("S1")
-                score2 = match.get("SC", {}).get("FS", {}).get("S2")
-                try:
-                    score1 = int(score1) if score1 is not None else 0
-                except:
-                    score1 = 0
-                try:
-                    score2 = int(score2) if score2 is not None else 0
-                except:
-                    score2 = 0
-                minute = None
-                sc = match.get("SC", {})
-                if "TS" in sc and isinstance(sc["TS"], int):
-                    minute = sc["TS"] // 60
-                elif "ST" in sc and isinstance(sc["ST"], int):
-                    minute = sc["ST"]
-                elif "T" in match and isinstance(match["T"], int):
-                    minute = match["T"] // 60
-                tn = match.get("TN", "").lower()
-                tns = match.get("TNS", "").lower()
-                tt = match.get("SC", {}).get("TT")
-                statut = "À venir"
-                is_live = False
-                is_finished = False
-                is_upcoming = False
-                if (minute is not None and minute > 0) or (score1 > 0 or score2 > 0):
-                    statut = f"En cours ({minute}′)" if minute else "En cours"
-                    is_live = True
-                if ("terminé" in tn or "terminé" in tns) or (tt == 3):
-                    statut = "Terminé"
-                    is_live = False
-                    is_finished = True
-                if statut == "À venir":
-                    is_upcoming = True
-                if selected_sport and sport != selected_sport:
-                    continue
-                if selected_league and league != selected_league:
-                    continue
-                if selected_status == "live" and not is_live:
-                    continue
-                if selected_status == "finished" and not is_finished:
-                    continue
-                if selected_status == "upcoming" and not is_upcoming:
-                    continue
-                match_ts = match.get("S", 0)
-                match_time = datetime.datetime.utcfromtimestamp(match_ts).strftime('%d/%m/%Y %H:%M') if match_ts else "–"
-                odds_data = []
-                for o in match.get("E", []):
-                    if o.get("G") == 1 and o.get("T") in [1, 2, 3] and o.get("C") is not None:
-                        odds_data.append({
-                            "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
-                            "cote": o.get("C")
-                        })
-                if not odds_data:
-                    for ae in match.get("AE", []):
-                        if ae.get("G") == 1:
-                            for o in ae.get("ME", []):
-                                if o.get("T") in [1, 2, 3] and o.get("C") is not None:
-                                    odds_data.append({
-                                        "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
-                                        "cote": o.get("C")
-                                    })
-                if not odds_data:
-                    formatted_odds = ["Pas de cotes disponibles"]
-                else:
-                    formatted_odds = [f"{od['type']}: {od['cote']}" for od in odds_data]
-                prediction = "–"
-                if odds_data:
-                    best = min(odds_data, key=lambda x: x["cote"])
-                    prediction = {
-                        "1": f"{team1} gagne",
-                        "2": f"{team2} gagne",
-                        "X": "Match nul"
-                    }.get(best["type"], "–")
-                meteo_data = match.get("MIS", [])
-                temp = next((item["V"] for item in meteo_data if item.get("K") == 9), "–")
-                humid = next((item["V"] for item in meteo_data if item.get("K") == 27), "–")
-                statut_officiel = match.get('TN') or match.get('TNS')
-                data.append({
-                    "team1": team1,
-                    "team2": team2,
-                    "score1": score1,
-                    "score2": score2,
-                    "league": league,
-                    "sport": sport,
-                    "status": statut,
-                    "status_officiel": statut_officiel,
-                    "datetime": match_time,
-                    "temp": temp,
-                    "humid": humid,
-                    "odds": formatted_odds,
-                    "prediction": prediction,
-                    "id": match.get("I", None)
-                })
-            except Exception as e:
-                continue
-        per_page = 20
-        total = len(data)
-        page = max(1, page)
-        data_paginated = data[(page-1)*per_page:page*per_page]
-        return render_template_string(TABLEAU_TEMPLATE, data=data_paginated)
-
-# --- Adapter le TEMPLATE principal pour AJAX ---
-TEMPLATE = TEMPLATE.replace(
-    '<table>', '<div id="tableau-matches">\n<table>', 1
-).replace(
-    '</table>', '</table>\n</div>', 1
-)
-# Ajouter le script AJAX juste avant </body>
-TEMPLATE = TEMPLATE.replace(
-    '</body>',
-    '''<script>
-    setInterval(function() {
-        // On garde les filtres et la page courante
-        let params = new URLSearchParams(window.location.search);
-        fetch('/tableau-matches?' + params.toString())
-          .then(response => response.text())
-          .then(html => {
-            document.getElementById('tableau-matches').innerHTML = html;
-          });
-    }, 5000);
-    </script>\n</body>''
-)
-
-@app.route('/details-match-ajax/<int:match_id>')
-def details_match_ajax(match_id):
-    try:
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?sports=85&count=50&lng=fr&gr=70&mode=4&country=96&getEmpty=true"
-        response = requests.get(api_url)
-        matches = response.json().get("Value", [])
-        match = next((m for m in matches if m.get("I") == match_id), None)
-        if not match:
-            return f"Aucun match trouvé pour l'identifiant {match_id}"
-        team1 = match.get("O1", "–")
-        team2 = match.get("O2", "–")
-        league = match.get("LE", "–")
-        sport = detect_sport(league)
-        score1 = match.get("SC", {}).get("FS", {}).get("S1")
-        score2 = match.get("SC", {}).get("FS", {}).get("S2")
-        try:
-            score1 = int(score1) if score1 is not None else 0
-        except:
-            score1 = 0
-        try:
-            score2 = int(score2) if score2 is not None else 0
-        except:
-            score2 = 0
-        stats = []
-        st = match.get("SC", {}).get("ST", [])
-        if st and isinstance(st, list) and len(st) > 0 and "Value" in st[0]:
-            for stat in st[0]["Value"]:
-                nom = stat.get("N", "?")
-                s1 = stat.get("S1", "0")
-                s2 = stat.get("S2", "0")
-                stats.append({"nom": nom, "s1": s1, "s2": s2})
-        explication = "La prédiction est basée sur les cotes et les statistiques principales (tirs, possession, etc.)."
-        odds_data = []
-        for o in match.get("E", []):
-            if o.get("G") == 1 and o.get("T") in [1, 2, 3] and o.get("C") is not None:
-                odds_data.append({
-                    "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
-                    "cote": o.get("C")
-                })
-        if not odds_data:
-            for ae in match.get("AE", []):
-                if ae.get("G") == 1:
-                    for o in ae.get("ME", []):
-                        if o.get("T") in [1, 2, 3] and o.get("C") is not None:
-                            odds_data.append({
-                                "type": {1: "1", 2: "2", 3: "X"}.get(o.get("T")),
-                                "cote": o.get("C")
-                            })
-        prediction = "–"
-        if odds_data:
-            best = min(odds_data, key=lambda x: x["cote"])
-            prediction = {
-                "1": f"{team1} gagne",
-                "2": f"{team2} gagne",
-                "X": "Match nul"
-            }.get(best["type"], "–")
-        def render_all_options(match):
-            html = '<h3>Toutes les options de paris</h3>'
-            if match.get('E'):
-                html += '<b>1X2 :</b><ul>'
-                for o in match['E']:
-                    t = o.get('T')
-                    label = {1: 'Victoire ' + team1, 2: 'Match nul', 3: 'Victoire ' + team2}.get(t, f'Option {t}')
-                    html += f'<li>{label} : {o.get("C", "–")}</li>'
-                html += '</ul>'
-            if match.get('AE'):
-                for ae in match['AE']:
-                    g = ae.get('G')
-                    html += f'<ul>'
-                    for me in ae.get('ME', []):
-                        p = me.get('P', '')
-                        t = me.get('T', '')
-                        c = me.get('C', '–')
-                        traduction = traduire_option_pari(g, t, p)
-                        html += f'<li>{traduction} : {c}</li>'
-                    html += '</ul>'
-            return html
-        def render_predictor(match):
-            min_cote = 1.399
-            max_cote = 3.0
-            predictions = []
-            for ae in match.get('AE', []):
-                g = ae.get('G')
-                if g not in [2, 17]:
-                    continue
-                for me in ae.get('ME', []):
-                    c = me.get('C')
-                    t = me.get('T')
-                    p = me.get('P')
-                    if c and min_cote <= c <= max_cote:
-                        traduction = traduire_option_pari(g, t, p)
-                        proba = round(1/float(c), 3) if c else '?' 
-                        predictions.append({
-                            'traduction': traduction,
-                            'cote': c,
-                            'proba': proba
-                        })
-            html = '<h3>Prédicteur alternatives (Handicap & Over/Under, cotes 1.399 à 3)</h3>'
-            if predictions:
-                best = max(predictions, key=lambda x: x['proba'])
-                html += f'<div style="background:#27ae60;color:white;padding:8px 15px;border-radius:8px;font-weight:bold;margin-bottom:10px;">Meilleure prédiction : {best["traduction"]} | Cote: {best["cote"]} | Proba: {best["proba"]}</div>'
-                html += '<ul>'
-                for pred in predictions:
-                    html += f'<li>{pred["traduction"]} | Cote: {pred["cote"]} | Proba: {pred["proba"]}</li>'
-                html += '</ul>'
-            else:
-                html += '<p>Aucune prédiction alternative disponible dans la fourchette demandée.</p>'
-            return html
-        statut_officiel = match.get('TN') or match.get('TNS')
-        return f'''
-            <p><b>Score :</b> {score1} - {score2}</p>
-            <p><b>Statut officiel :</b> {statut_officiel or '–'}</p>
-            <p><b>Prédiction du bot :</b> {prediction}</p>
-            <p><b>Explication :</b> {explication}</p>
-            <h3>Statistiques principales</h3>
-            <table class="stats-table">
-                <tr><th>Statistique</th><th>{team1}</th><th>{team2}</th></tr>
-                {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td></tr>' for s in stats)}
-            </table>
-            <canvas id="statsChart" height="200"></canvas>
-            {render_all_options(match)}
-            {render_predictor(match)}
             <script>
                 const labels = { [repr(s['nom']) for s in stats] };
                 const data1 = { [float(s['s1']) if s['s1'].replace('.', '', 1).isdigit() else 0 for s in stats] };
@@ -822,7 +288,131 @@ def details_match_ajax(match_id):
                     options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
                 }});
             </script>
+        </body></html>
         '''
+    except Exception as e:
+        return f"Erreur lors de l'affichage des détails du match : {e}"
+
+TEMPLATE = """<!DOCTYPE html>
+<html><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Live Football & Sports | Prédictions & Stats</title>
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
+        h2 { text-align: center; }
+        form { text-align: center; margin-bottom: 20px; }
+        label { font-weight: bold; margin-right: 10px; }
+        select { padding: 12px; margin: 0 10px; font-size: 16px; border-radius: 6px; border: 1px solid #2c3e50; background: #fff; color: #2c3e50; }
+        select:focus { outline: 2px solid #2980b9; }
+        table { border-collapse: collapse; margin: auto; width: 98%; background: white; }
+        th, td { padding: 14px; border: 1.5px solid #2c3e50; text-align: center; font-size: 16px; }
+        th { background: #1a252f; color: #fff; font-size: 18px; }
+        tr:nth-child(even) { background-color: #eaf6fb; }
+        tr:nth-child(odd) { background-color: #f9f9f9; }
+        .pagination { text-align: center; margin: 20px 0; }
+        .pagination button { padding: 14px 24px; margin: 0 6px; font-size: 18px; border: none; background: #2980b9; color: #fff; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+        .pagination button:disabled { background: #b2bec3; color: #636e72; cursor: not-allowed; }
+        .pagination button:focus { outline: 2px solid #27ae60; }
+        /* Responsive */
+        @media (max-width: 800px) {
+            table, thead, tbody, th, td, tr { display: block; }
+            th { position: absolute; left: -9999px; top: -9999px; }
+            tr { margin-bottom: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 6px #ccc; }
+            td { border: none; border-bottom: 1px solid #eee; position: relative; padding-left: 50%; min-height: 40px; font-size: 16px; }
+            td:before { position: absolute; top: 10px; left: 10px; width: 45%; white-space: nowrap; font-weight: bold; color: #2980b9; }
+            td:nth-of-type(1):before { content: 'Équipe 1'; }
+            td:nth-of-type(2):before { content: 'Score 1'; }
+            td:nth-of-type(3):before { content: 'Score 2'; }
+            td:nth-of-type(4):before { content: 'Équipe 2'; }
+            td:nth-of-type(5):before { content: 'Sport'; }
+            td:nth-of-type(6):before { content: 'Ligue'; }
+            td:nth-of-type(7):before { content: 'Statut'; }
+            td:nth-of-type(8):before { content: 'Date & Heure'; }
+            td:nth-of-type(9):before { content: 'Température'; }
+            td:nth-of-type(10):before { content: 'Humidité'; }
+            td:nth-of-type(11):before { content: 'Cotes'; }
+            td:nth-of-type(12):before { content: 'Prédiction'; }
+            td:nth-of-type(13):before { content: 'Détails'; }
+        }
+        /* Loader */
+        #loader { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center; }
+        #loader .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #2980b9; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        /* Focus visible for accessibility */
+        a:focus, button:focus, select:focus { outline: 2px solid #27ae60; }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var forms = document.querySelectorAll('form');
+            forms.forEach(function(form) {
+                form.addEventListener('submit', function() {
+                    document.getElementById('loader').style.display = 'flex';
+                });
+            });
+        });
+    </script>
+</head><body>
+    <div id="loader" role="status" aria-live="polite"><div class="spinner" aria-label="Chargement"></div></div>
+    <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
+
+    <form method="get" aria-label="Filtres de matchs">
+        <label for="sport-select">Sport :</label>
+        <select id="sport-select" name="sport" onchange="this.form.submit()" aria-label="Filtrer par sport">
+            <option value="">Tous</option>
+            {% for s in sports %}
+                <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
+            {% endfor %}
+        </select>
+        <label for="league-select">Ligue :</label>
+        <select id="league-select" name="league" onchange="this.form.submit()" aria-label="Filtrer par ligue">
+            <option value="">Toutes</option>
+            {% for l in leagues %}
+                <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
+            {% endfor %}
+        </select>
+        <label for="status-select">Statut :</label>
+        <select id="status-select" name="status" onchange="this.form.submit()" aria-label="Filtrer par statut">
+            <option value="">Tous</option>
+            <option value="live" {% if selected_status == "live" %}selected{% endif %}>En direct</option>
+            <option value="upcoming" {% if selected_status == "upcoming" %}selected{% endif %}>À venir</option>
+            <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
+        </select>
+    </form>
+
+    <div class="pagination">
+        <form method="get" style="display:inline;" aria-label="Page précédente">
+            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+            <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %} aria-label="Page précédente">Page précédente</button>
+        </form>
+        <span aria-live="polite">Page {{ page }} / {{ total_pages }}</span>
+        <form method="get" style="display:inline;" aria-label="Page suivante">
+            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+            <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %} aria-label="Page suivante">Page suivante</button>
+        </form>
+    </div>
+
+    <table>
+        <tr>
+            <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
+            <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
+            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Détails</th>
+        </tr>
+        {% for m in data %}
+        <tr>
+            <td>{{m.team1}}</td><td>{{m.score1}}</td><td>{{m.score2}}</td><td>{{m.team2}}</td>
+            <td>{{m.sport}}</td><td>{{m.league}}</td><td>{{m.status}}</td><td>{{m.datetime}}</td>
+            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
+            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a>{% else %}–{% endif %}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body></html>"""
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
