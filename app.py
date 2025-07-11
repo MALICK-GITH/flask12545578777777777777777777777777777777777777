@@ -820,7 +820,7 @@ def match_details(match_id):
                             <th><i class="fas fa-user"></i> {team2}</th>
                             <th><i class="fas fa-percentage"></i> Avantage</th>
                         </tr>
-                        {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td><td><div class="progress-bar"><div class="progress-fill" style="width: {max(10, min(90, (float(s["s1"]) if str(s["s1"]).replace(".", "", 1).isdigit() else 0) / max(1, (float(s["s1"]) if str(s["s1"]).replace(".", "", 1).isdigit() else 0) + (float(s["s2"]) if str(s["s2"]).replace(".", "", 1).isdigit() else 0)) * 100)}%"></div></div></td></tr>' for s in stats)}
+                        {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td><td><div class="progress-bar"><div class="progress-fill" style="width: {calculate_percentage(s["s1"], s["s2"])}%"></div></div></td></tr>' for s in stats)}
                     </table>
                 </div>
                 
@@ -1673,6 +1673,19 @@ TEMPLATE = """<!DOCTYPE html>
         </div>
     </div>
 </body></html>"""
+
+def calculate_percentage(s1, s2):
+    """Calcule le pourcentage pour la barre de progression"""
+    try:
+        val1 = float(s1) if str(s1).replace('.', '', 1).isdigit() else 0
+        val2 = float(s2) if str(s2).replace('.', '', 1).isdigit() else 0
+        total = val1 + val2
+        if total == 0:
+            return 50  # 50% par défaut si pas de données
+        percentage = (val1 / total) * 100
+        return max(10, min(90, percentage))  # Limite entre 10% et 90%
+    except:
+        return 50
 
 def generer_prediction_lisible(nom, valeur, team1, team2):
     """Génère une phrase prédictive claire pour chaque pari, en précisant l'équipe si besoin."""
