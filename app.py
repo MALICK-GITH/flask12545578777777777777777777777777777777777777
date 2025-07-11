@@ -443,9 +443,9 @@ def match_details(match_id):
                 </div>
             </div>
             <script>
-                const labels = { [repr(s['nom']) for s in stats] };
-                const data1 = { [float(s['s1']) if s['s1'].replace('.', '', 1).isdigit() else 0 for s in stats] };
-                const data2 = { [float(s['s2']) if s['s2'].replace('.', '', 1).isdigit() else 0 for s in stats] };
+                const labels = {json.dumps([s['nom'] for s in stats])};
+                const data1 = {json.dumps([float(s['s1']) if str(s['s1']).replace('.', '', 1).isdigit() else 0 for s in stats])};
+                const data2 = {json.dumps([float(s['s2']) if str(s['s2']).replace('.', '', 1).isdigit() else 0 for s in stats])};
                 new Chart(document.getElementById('statsChart'), {{
                     type: 'bar',
                     data: {{
@@ -469,127 +469,541 @@ TEMPLATE = """<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Live Football & Sports | Prédictions & Stats</title>
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/197/197604.png">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f4; }
-        h2 { text-align: center; }
-        form { text-align: center; margin-bottom: 20px; }
-        label { font-weight: bold; margin-right: 10px; }
-        select { padding: 12px; margin: 0 10px; font-size: 16px; border-radius: 6px; border: 1px solid #2c3e50; background: #fff; color: #2c3e50; }
-        select:focus { outline: 2px solid #2980b9; }
-        table { border-collapse: collapse; margin: auto; width: 98%; background: white; }
-        th, td { padding: 14px; border: 1.5px solid #2c3e50; text-align: center; font-size: 16px; }
-        th { background: #1a252f; color: #fff; font-size: 18px; }
-        tr:nth-child(even) { background-color: #eaf6fb; }
-        tr:nth-child(odd) { background-color: #f9f9f9; }
-        .pagination { text-align: center; margin: 20px 0; }
-        .pagination button { padding: 14px 24px; margin: 0 6px; font-size: 18px; border: none; background: #2980b9; color: #fff; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
-        .pagination button:disabled { background: #b2bec3; color: #636e72; cursor: not-allowed; }
-        .pagination button:focus { outline: 2px solid #27ae60; }
-        /* Responsive */
-        @media (max-width: 800px) {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            animation: fadeInUp 0.8s ease-out;
+        }
+        
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        h2 { 
+            text-align: center; 
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .filters-container {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        form { 
+            text-align: center; 
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        label { 
+            font-weight: bold; 
+            color: white;
+            font-size: 1.1em;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        select { 
+            padding: 12px 20px; 
+            font-size: 16px; 
+            border-radius: 25px; 
+            border: none; 
+            background: rgba(255,255,255,0.9); 
+            color: #333;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        select:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        select:focus { 
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255,255,255,0.5);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card i {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        table { 
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        
+        th, td { 
+            padding: 15px; 
+            text-align: center; 
+            font-size: 16px; 
+            border-bottom: 1px solid #eee;
+        }
+        
+        th { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        tr { transition: all 0.3s ease; }
+        
+        tr:hover {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            transform: scale(1.02);
+        }
+        
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+        
+        .status-live {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-finished {
+            background: linear-gradient(45deg, #2ed573, #1e90ff);
+            color: white;
+        }
+        
+        .status-upcoming {
+            background: linear-gradient(45deg, #ffa726, #ff7043);
+            color: white;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 107, 107, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0); }
+        }
+        
+        .pagination { 
+            text-align: center; 
+            margin: 30px 0; 
+        }
+        
+        .pagination button { 
+            padding: 15px 30px; 
+            margin: 0 10px; 
+            font-size: 16px; 
+            border: none; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; 
+            border-radius: 25px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .pagination button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        
+        .pagination button:disabled { 
+            background: #b2bec3; 
+            color: #636e72; 
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .details-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        
+        .details-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .contact-box { 
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            border: none;
+            border-radius: 20px; 
+            margin: 40px auto 0 auto; 
+            padding: 30px; 
+            text-align: center; 
+            font-size: 20px; 
+            font-weight: bold; 
+            color: white; 
+            max-width: 700px; 
+            box-shadow: 0 20px 40px rgba(255, 107, 107, 0.3);
+            animation: bounceIn 1s ease-out;
+        }
+        
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .contact-box a { 
+            color: white; 
+            font-weight: bold; 
+            text-decoration: none; 
+            font-size: 24px; 
+            transition: all 0.3s ease;
+        }
+        
+        .contact-box a:hover {
+            text-shadow: 0 0 10px rgba(255,255,255,0.8);
+            transform: scale(1.05);
+        }
+        
+        .contact-box .icon { 
+            font-size: 28px; 
+            vertical-align: middle; 
+            margin-right: 10px; 
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        /* Loader amélioré */
+        #loader { 
+            display: none; 
+            position: fixed; 
+            left: 0; 
+            top: 0; 
+            width: 100vw; 
+            height: 100vh; 
+            background: rgba(0,0,0,0.8); 
+            z-index: 9999; 
+            justify-content: center; 
+            align-items: center; 
+            backdrop-filter: blur(5px);
+        }
+        
+        #loader .spinner { 
+            width: 80px;
+            height: 80px;
+            border: 8px solid rgba(255,255,255,0.3);
+            border-top: 8px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+        }
+        
+        @keyframes spin { 
+            100% { transform: rotate(360deg); } 
+        }
+        
+        /* Responsive amélioré */
+        @media (max-width: 768px) {
+            .container { padding: 20px; margin: 10px; }
+            h2 { font-size: 2em; }
+            form { flex-direction: column; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .table-container { overflow-x: auto; }
             table, thead, tbody, th, td, tr { display: block; }
             th { position: absolute; left: -9999px; top: -9999px; }
-            tr { margin-bottom: 15px; background: white; border-radius: 8px; box-shadow: 0 2px 6px #ccc; }
-            td { border: none; border-bottom: 1px solid #eee; position: relative; padding-left: 50%; min-height: 40px; font-size: 16px; }
-            td:before { position: absolute; top: 10px; left: 10px; width: 45%; white-space: nowrap; font-weight: bold; color: #2980b9; }
-            td:nth-of-type(1):before { content: 'Équipe 1'; }
-            td:nth-of-type(2):before { content: 'Score 1'; }
-            td:nth-of-type(3):before { content: 'Score 2'; }
-            td:nth-of-type(4):before { content: 'Équipe 2'; }
-            td:nth-of-type(5):before { content: 'Sport'; }
-            td:nth-of-type(6):before { content: 'Ligue'; }
-            td:nth-of-type(7):before { content: 'Statut'; }
-            td:nth-of-type(8):before { content: 'Date & Heure'; }
-            td:nth-of-type(9):before { content: 'Température'; }
-            td:nth-of-type(10):before { content: 'Humidité'; }
-            td:nth-of-type(11):before { content: 'Cotes'; }
-            td:nth-of-type(12):before { content: 'Prédiction'; }
-            td:nth-of-type(13):before { content: 'Détails'; }
+            tr { 
+                margin-bottom: 20px; 
+                background: white; 
+                border-radius: 15px; 
+                box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+                padding: 15px;
+            }
+            td { 
+                border: none; 
+                border-bottom: 1px solid #eee; 
+                position: relative; 
+                padding-left: 50%; 
+                min-height: 50px; 
+                font-size: 16px; 
+                display: flex;
+                align-items: center;
+            }
+            td:before { 
+                position: absolute; 
+                top: 50%;
+                left: 15px; 
+                width: 45%; 
+                white-space: nowrap; 
+                font-weight: bold; 
+                color: #667eea;
+                transform: translateY(-50%);
+            }
+            td:nth-of-type(1):before { content: '🏆 Équipe 1'; }
+            td:nth-of-type(2):before { content: '⚽ Score 1'; }
+            td:nth-of-type(3):before { content: '⚽ Score 2'; }
+            td:nth-of-type(4):before { content: '🏆 Équipe 2'; }
+            td:nth-of-type(5):before { content: '🎯 Sport'; }
+            td:nth-of-type(6):before { content: '🏅 Ligue'; }
+            td:nth-of-type(7):before { content: '📊 Statut'; }
+            td:nth-of-type(8):before { content: '🕐 Date & Heure'; }
+            td:nth-of-type(9):before { content: '🌡️ Température'; }
+            td:nth-of-type(10):before { content: '💧 Humidité'; }
+            td:nth-of-type(11):before { content: '💰 Cotes'; }
+            td:nth-of-type(12):before { content: '🔮 Prédiction'; }
+            td:nth-of-type(13):before { content: '📋 Détails'; }
         }
-        /* Loader */
-        #loader { display: none; position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(255,255,255,0.7); z-index: 9999; justify-content: center; align-items: center; }
-        #loader .spinner { border: 8px solid #f3f3f3; border-top: 8px solid #2980b9; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        /* Focus visible for accessibility */
-        a:focus, button:focus, select:focus { outline: 2px solid #27ae60; }
-        .contact-box { background: #ff1744; border: 4px solid #ff1744; border-radius: 16px; margin: 40px auto 0 auto; padding: 28px; text-align: center; font-size: 22px; font-weight: bold; color: #fff; max-width: 650px; box-shadow: 0 0 24px 8px #ff1744, 0 0 60px 10px #fff3; text-shadow: 0 0 8px #fff, 0 0 16px #ff1744; letter-spacing: 1px; }
-        .contact-box a { color: #fff; font-weight: bold; text-decoration: underline; font-size: 26px; text-shadow: 0 0 8px #fff, 0 0 16px #ff1744; }
-        .contact-box .icon { font-size: 32px; vertical-align: middle; margin-right: 10px; filter: drop-shadow(0 0 6px #fff); }
+        
+        /* Effets de scroll */
+        .scroll-reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s ease;
+        }
+        
+        .scroll-reveal.revealed {
+            opacity: 1;
+            transform: translateY(0);
+        }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Animation au scroll
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+            
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('revealed');
+                    }
+                });
+            }, observerOptions);
+            
+            document.querySelectorAll('.scroll-reveal').forEach(el => {
+                observer.observe(el);
+            });
+            
+            // Loader
             var forms = document.querySelectorAll('form');
             forms.forEach(function(form) {
                 form.addEventListener('submit', function() {
                     document.getElementById('loader').style.display = 'flex';
                 });
             });
+            
+            // Effet de parallaxe sur le titre
+            window.addEventListener('scroll', function() {
+                const scrolled = window.pageYOffset;
+                const title = document.querySelector('h2');
+                if (title) {
+                    title.style.transform = `translateY(${scrolled * 0.5}px)`;
+                }
+            });
         });
     </script>
 </head><body>
-    <div id="loader" role="status" aria-live="polite"><div class="spinner" aria-label="Chargement"></div></div>
-    <h2>📊 Matchs en direct — {{ selected_sport }} / {{ selected_league }} / {{ selected_status }}</h2>
-
-    <form method="get" aria-label="Filtres de matchs">
-        <label for="sport-select">Sport :</label>
-        <select id="sport-select" name="sport" onchange="this.form.submit()" aria-label="Filtrer par sport">
-            <option value="">Tous</option>
-            {% for s in sports %}
-                <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
-            {% endfor %}
-        </select>
-        <label for="league-select">Ligue :</label>
-        <select id="league-select" name="league" onchange="this.form.submit()" aria-label="Filtrer par ligue">
-            <option value="">Toutes</option>
-            {% for l in leagues %}
-                <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
-            {% endfor %}
-        </select>
-        <label for="status-select">Statut :</label>
-        <select id="status-select" name="status" onchange="this.form.submit()" aria-label="Filtrer par statut">
-            <option value="">Tous</option>
-            <option value="live" {% if selected_status == "live" %}selected{% endif %}>En direct</option>
-            <option value="upcoming" {% if selected_status == "upcoming" %}selected{% endif %}>À venir</option>
-            <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
-        </select>
-    </form>
-
-    <div class="pagination">
-        <form method="get" style="display:inline;" aria-label="Page précédente">
-            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
-            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
-            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
-            <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %} aria-label="Page précédente">Page précédente</button>
-        </form>
-        <span aria-live="polite">Page {{ page }} / {{ total_pages }}</span>
-        <form method="get" style="display:inline;" aria-label="Page suivante">
-            <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
-            <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
-            <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
-            <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %} aria-label="Page suivante">Page suivante</button>
-        </form>
+    <div id="loader" role="status" aria-live="polite">
+        <div class="spinner" aria-label="Chargement"></div>
     </div>
+    
+    <div class="container">
+        <h2 class="scroll-reveal">⚽ Live Football & Sports | Prédictions & Stats 📊</h2>
 
-    <table>
-        <tr>
-            <th>Équipe 1</th><th>Score 1</th><th>Score 2</th><th>Équipe 2</th>
-            <th>Sport</th><th>Ligue</th><th>Statut</th><th>Date & Heure</th>
-            <th>Température</th><th>Humidité</th><th>Cotes</th><th>Prédiction</th><th>Détails</th>
-        </tr>
-        {% for m in data %}
-        <tr>
-            <td>{{m.team1}}</td><td>{{m.score1}}</td><td>{{m.score2}}</td><td>{{m.team2}}</td>
-            <td>{{m.sport}}</td><td>{{m.league}}</td><td>{{m.status}}</td><td>{{m.datetime}}</td>
-            <td>{{m.temp}}°C</td><td>{{m.humid}}%</td><td>{{m.odds|join(" | ")}}</td><td>{{m.prediction}}</td>
-            <td>{% if m.id %}<a href="/match/{{m.id}}"><button>Détails</button></a>{% else %}–{% endif %}</td>
-        </tr>
-        {% endfor %}
-    </table>
-    <div class="contact-box">
-        <span class="icon">📬</span> Inbox Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a><br>
-        <span class="icon">📢</span> Canal Telegram : <a href="https://t.me/SOLITAIREHACK" target="_blank">SOLITAIREHACK</a><br>
-        <span class="icon">🎨</span> Je suis aussi concepteur graphique et créateur de logiciels.<br>
-        <span style="color:#d84315; font-size:22px; font-weight:bold;">Vous avez un projet en tête ? Contactez-moi, je suis là pour vous !</span>
+        <div class="filters-container scroll-reveal">
+            <form method="get" aria-label="Filtres de matchs">
+                <label for="sport-select"><i class="fas fa-futbol"></i> Sport :</label>
+                <select id="sport-select" name="sport" onchange="this.form.submit()" aria-label="Filtrer par sport">
+                    <option value="">Tous les sports</option>
+                    {% for s in sports %}
+                        <option value="{{s}}" {% if s == selected_sport %}selected{% endif %}>{{s}}</option>
+                    {% endfor %}
+                </select>
+                
+                <label for="league-select"><i class="fas fa-trophy"></i> Ligue :</label>
+                <select id="league-select" name="league" onchange="this.form.submit()" aria-label="Filtrer par ligue">
+                    <option value="">Toutes les ligues</option>
+                    {% for l in leagues %}
+                        <option value="{{l}}" {% if l == selected_league %}selected{% endif %}>{{l}}</option>
+                    {% endfor %}
+                </select>
+                
+                <label for="status-select"><i class="fas fa-clock"></i> Statut :</label>
+                <select id="status-select" name="status" onchange="this.form.submit()" aria-label="Filtrer par statut">
+                    <option value="">Tous les statuts</option>
+                    <option value="live" {% if selected_status == "live" %}selected{% endif %}>En direct</option>
+                    <option value="upcoming" {% if selected_status == "upcoming" %}selected{% endif %}>À venir</option>
+                    <option value="finished" {% if selected_status == "finished" %}selected{% endif %}>Terminé</option>
+                </select>
+            </form>
+        </div>
+
+        <div class="stats-grid scroll-reveal">
+            <div class="stat-card">
+                <i class="fas fa-futbol"></i>
+                <h3>{{ selected_sport if selected_sport != 'Tous' else 'Tous les sports' }}</h3>
+                <p>Sport sélectionné</p>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-trophy"></i>
+                <h3>{{ selected_league if selected_league != 'Toutes' else 'Toutes les ligues' }}</h3>
+                <p>Ligue sélectionnée</p>
+            </div>
+            <div class="stat-card">
+                <i class="fas fa-chart-line"></i>
+                <h3>{{ data|length }} matchs</h3>
+                <p>Résultats trouvés</p>
+            </div>
+        </div>
+
+        <div class="pagination scroll-reveal">
+            <form method="get" style="display:inline;" aria-label="Page précédente">
+                <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+                <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+                <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+                <button type="submit" name="page" value="{{ page-1 }}" {% if page <= 1 %}disabled{% endif %} aria-label="Page précédente">
+                    <i class="fas fa-chevron-left"></i> Précédente
+                </button>
+            </form>
+            <span aria-live="polite" style="margin: 0 20px; font-weight: bold; color: #667eea;">Page {{ page }} / {{ total_pages }}</span>
+            <form method="get" style="display:inline;" aria-label="Page suivante">
+                <input type="hidden" name="sport" value="{{ selected_sport if selected_sport != 'Tous' else '' }}">
+                <input type="hidden" name="league" value="{{ selected_league if selected_league != 'Toutes' else '' }}">
+                <input type="hidden" name="status" value="{{ selected_status if selected_status != 'Tous' else '' }}">
+                <button type="submit" name="page" value="{{ page+1 }}" {% if page >= total_pages %}disabled{% endif %} aria-label="Page suivante">
+                    Suivante <i class="fas fa-chevron-right"></i>
+                </button>
+            </form>
+        </div>
+
+        <div class="table-container scroll-reveal">
+            <table>
+                <tr>
+                    <th><i class="fas fa-users"></i> Équipe 1</th>
+                    <th><i class="fas fa-futbol"></i> Score 1</th>
+                    <th><i class="fas fa-futbol"></i> Score 2</th>
+                    <th><i class="fas fa-users"></i> Équipe 2</th>
+                    <th><i class="fas fa-trophy"></i> Sport</th>
+                    <th><i class="fas fa-medal"></i> Ligue</th>
+                    <th><i class="fas fa-clock"></i> Statut</th>
+                    <th><i class="fas fa-calendar"></i> Date & Heure</th>
+                    <th><i class="fas fa-thermometer-half"></i> Température</th>
+                    <th><i class="fas fa-tint"></i> Humidité</th>
+                    <th><i class="fas fa-coins"></i> Cotes</th>
+                    <th><i class="fas fa-magic"></i> Prédiction</th>
+                    <th><i class="fas fa-info-circle"></i> Détails</th>
+                </tr>
+                {% for m in data %}
+                <tr class="scroll-reveal">
+                    <td><strong>{{m.team1}}</strong></td>
+                    <td><span class="score">{{m.score1}}</span></td>
+                    <td><span class="score">{{m.score2}}</span></td>
+                    <td><strong>{{m.team2}}</strong></td>
+                    <td><i class="fas fa-{{ 'futbol' if m.sport == 'Football' else 'basketball-ball' if m.sport == 'Basketball' else 'table-tennis' if m.sport == 'Tennis' else 'hockey-puck' if m.sport == 'Hockey' else 'cricket' if m.sport == 'Cricket' else 'trophy' }}"></i> {{m.sport}}</td>
+                    <td>{{m.league}}</td>
+                    <td>
+                        <span class="status-badge {% if 'En cours' in m.status %}status-live{% elif 'Terminé' in m.status %}status-finished{% else %}status-upcoming{% endif %}">
+                            {{m.status}}
+                        </span>
+                    </td>
+                    <td><i class="fas fa-calendar-alt"></i> {{m.datetime}}</td>
+                    <td><i class="fas fa-thermometer-half"></i> {{m.temp}}°C</td>
+                    <td><i class="fas fa-tint"></i> {{m.humid}}%</td>
+                    <td><i class="fas fa-coins"></i> {{m.odds|join(" | ")}}</td>
+                    <td><i class="fas fa-magic"></i> {{m.prediction}}</td>
+                    <td>
+                        {% if m.id %}
+                            <a href="/match/{{m.id}}">
+                                <button class="details-btn">
+                                    <i class="fas fa-eye"></i> Détails
+                                </button>
+                            </a>
+                        {% else %}
+                            –
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        
+        <div class="contact-box scroll-reveal">
+            <span class="icon">📬</span> Inbox Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a><br>
+            <span class="icon">📢</span> Canal Telegram : <a href="https://t.me/SOLITAIREHACK" target="_blank">SOLITAIREHACK</a><br>
+            <span class="icon">🎨</span> Je suis aussi concepteur graphique et créateur de logiciels.<br>
+            <span style="color:#fff; font-size:22px; font-weight:bold; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">Vous avez un projet en tête ? Contactez-moi, je suis là pour vous !</span>
+        </div>
     </div>
 </body></html>"""
 
