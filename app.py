@@ -398,64 +398,603 @@ def match_details(match_id):
         <html><head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Détails du match</title>
+            <title>Détails du match - {team1} vs {team2}</title>
+            <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
             <style>
-                body {{ font-family: Arial; padding: 20px; background: #f4f4f4; }}
-                .container {{ max-width: 800px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px #ccc; padding: 20px; }}
-                h2 {{ text-align: center; }}
-                .stats-table, .alt-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-                .stats-table th, .stats-table td, .alt-table th, .alt-table td {{ border: 1px solid #ccc; padding: 8px; text-align: center; }}
-                .back-btn {{ margin-bottom: 20px; display: inline-block; }}
-                .highlight-pred {{ background: #eaf6fb; color: #2980b9; font-weight: bold; padding: 10px; border-radius: 6px; margin-bottom: 15px; }}
-                .contact-box {{ background: #f0f8ff; border: 1.5px solid #2980b9; border-radius: 8px; margin-top: 30px; padding: 18px; text-align: center; font-size: 17px; }}
-                .contact-box a {{ color: #1565c0; font-weight: bold; text-decoration: none; }}
+                * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+                
+                body {{ 
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    min-height: 100vh;
+                    padding: 20px;
+                }}
+                
+                .container {{ 
+                    max-width: 1200px; 
+                    margin: 0 auto; 
+                    background: rgba(255, 255, 255, 0.95);
+                    border-radius: 20px;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                    backdrop-filter: blur(10px);
+                    padding: 30px;
+                    animation: fadeInUp 0.8s ease-out;
+                }}
+                
+                @keyframes fadeInUp {{
+                    from {{ opacity: 0; transform: translateY(30px); }}
+                    to {{ opacity: 1; transform: translateY(0); }}
+                }}
+                
+                .back-btn {{
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 10px;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    text-decoration: none;
+                    padding: 12px 24px;
+                    border-radius: 25px;
+                    font-weight: bold;
+                    margin-bottom: 30px;
+                    transition: all 0.3s ease;
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+                }}
+                
+                .back-btn:hover {{
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+                }}
+                
+                .match-header {{
+                    text-align: center;
+                    margin-bottom: 40px;
+                    padding: 30px;
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    border-radius: 20px;
+                    color: white;
+                    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+                }}
+                
+                .match-header h2 {{
+                    font-size: 2.5em;
+                    margin-bottom: 15px;
+                    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+                }}
+                
+                .match-info {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 20px;
+                    margin: 20px 0;
+                }}
+                
+                .info-card {{
+                    background: rgba(255,255,255,0.2);
+                    padding: 15px;
+                    border-radius: 15px;
+                    text-align: center;
+                    backdrop-filter: blur(10px);
+                }}
+                
+                .score-display {{
+                    font-size: 3em;
+                    font-weight: bold;
+                    margin: 20px 0;
+                    text-shadow: 3px 3px 6px rgba(0,0,0,0.3);
+                }}
+                
+                .prediction-section {{
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 25px;
+                    border-radius: 20px;
+                    margin: 30px 0;
+                    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+                }}
+                
+                .prediction-grid {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-top: 20px;
+                }}
+                
+                .prediction-card {{
+                    background: rgba(255,255,255,0.1);
+                    padding: 20px;
+                    border-radius: 15px;
+                    text-align: center;
+                    backdrop-filter: blur(10px);
+                    border: 1px solid rgba(255,255,255,0.2);
+                }}
+                
+                .charts-section {{
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                    gap: 30px;
+                    margin: 40px 0;
+                }}
+                
+                .chart-container {{
+                    background: white;
+                    border-radius: 20px;
+                    padding: 25px;
+                    box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+                    transition: transform 0.3s ease;
+                }}
+                
+                .chart-container:hover {{
+                    transform: translateY(-5px);
+                }}
+                
+                .chart-title {{
+                    text-align: center;
+                    font-size: 1.5em;
+                    font-weight: bold;
+                    margin-bottom: 20px;
+                    color: #667eea;
+                }}
+                
+                .stats-table, .alt-table {{ 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    margin-top: 20px;
+                    background: white;
+                    border-radius: 15px;
+                    overflow: hidden;
+                    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+                }}
+                
+                .stats-table th, .stats-table td, .alt-table th, .alt-table td {{ 
+                    padding: 15px; 
+                    text-align: center; 
+                    border-bottom: 1px solid #eee;
+                }}
+                
+                .stats-table th, .alt-table th {{ 
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    font-weight: bold;
+                    font-size: 1.1em;
+                }}
+                
+                .stats-table tr:nth-child(even), .alt-table tr:nth-child(even) {{ 
+                    background-color: #f8f9fa; 
+                }}
+                
+                .stats-table tr:hover, .alt-table tr:hover {{ 
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    color: white;
+                    transform: scale(1.02);
+                    transition: all 0.3s ease;
+                }}
+                
+                .contact-box {{ 
+                    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+                    color: white;
+                    border-radius: 20px; 
+                    margin: 40px auto 0 auto; 
+                    padding: 30px; 
+                    text-align: center; 
+                    font-size: 18px; 
+                    font-weight: bold; 
+                    box-shadow: 0 20px 40px rgba(255, 107, 107, 0.3);
+                    animation: bounceIn 1s ease-out;
+                }}
+                
+                @keyframes bounceIn {{
+                    0% {{ transform: scale(0.3); opacity: 0; }}
+                    50% {{ transform: scale(1.05); }}
+                    70% {{ transform: scale(0.9); }}
+                    100% {{ transform: scale(1); opacity: 1; }}
+                }}
+                
+                .contact-box a {{ 
+                    color: white; 
+                    font-weight: bold; 
+                    text-decoration: none; 
+                    font-size: 20px; 
+                    transition: all 0.3s ease;
+                }}
+                
+                .contact-box a:hover {{
+                    text-shadow: 0 0 10px rgba(255,255,255,0.8);
+                    transform: scale(1.05);
+                }}
+                
+                .progress-bar {{
+                    width: 100%;
+                    height: 20px;
+                    background: #e0e0e0;
+                    border-radius: 10px;
+                    overflow: hidden;
+                    margin: 10px 0;
+                }}
+                
+                .progress-fill {{
+                    height: 100%;
+                    background: linear-gradient(90deg, #667eea, #764ba2);
+                    transition: width 0.3s ease;
+                }}
+                
+                .section-title {{
+                    font-size: 2em;
+                    text-align: center;
+                    margin: 40px 0 20px 0;
+                    color: #667eea;
+                    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+                }}
+                
+                @media (max-width: 768px) {{
+                    .container {{ 
+                        padding: 15px; 
+                        margin: 5px; 
+                        border-radius: 15px;
+                    }}
+                    
+                    .match-header {{
+                        padding: 20px;
+                        margin-bottom: 20px;
+                    }}
+                    
+                    .match-header h2 {{ 
+                        font-size: 1.8em; 
+                        margin-bottom: 10px;
+                    }}
+                    
+                    .score-display {{ 
+                        font-size: 2.2em; 
+                        margin: 15px 0;
+                    }}
+                    
+                    .match-info {{
+                        grid-template-columns: 1fr;
+                        gap: 15px;
+                    }}
+                    
+                    .info-card {{
+                        padding: 12px;
+                    }}
+                    
+                    .prediction-section {{
+                        padding: 20px;
+                        margin: 20px 0;
+                    }}
+                    
+                    .prediction-grid {{ 
+                        grid-template-columns: 1fr; 
+                        gap: 15px;
+                    }}
+                    
+                    .prediction-card {{
+                        padding: 15px;
+                    }}
+                    
+                    .charts-section {{ 
+                        grid-template-columns: 1fr; 
+                        gap: 20px;
+                        margin: 20px 0;
+                    }}
+                    
+                    .chart-container {{
+                        padding: 20px;
+                        margin-bottom: 20px;
+                    }}
+                    
+                    .chart-title {{
+                        font-size: 1.3em;
+                        margin-bottom: 15px;
+                    }}
+                    
+                    .section-title {{
+                        font-size: 1.6em;
+                        margin: 30px 0 15px 0;
+                    }}
+                    
+                    .stats-table, .alt-table {{
+                        font-size: 14px;
+                    }}
+                    
+                    .stats-table th, .stats-table td, .alt-table th, .alt-table td {{
+                        padding: 10px;
+                    }}
+                    
+                    .contact-box {{
+                        padding: 20px;
+                        font-size: 16px;
+                        margin: 20px auto;
+                    }}
+                    
+                    .contact-box a {{
+                        font-size: 18px;
+                    }}
+                }}
+                
+                /* Optimisations pour tablettes */
+                @media (min-width: 769px) and (max-width: 1024px) {{
+                    .container {{
+                        max-width: 95%;
+                        padding: 25px;
+                    }}
+                    
+                    .charts-section {{
+                        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+                    }}
+                    
+                    .prediction-grid {{
+                        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    }}
+                }}
+                
+                /* Optimisations pour PC */
+                @media (min-width: 1025px) {{
+                    .container {{
+                        max-width: 1200px;
+                    }}
+                    
+                    .charts-section {{
+                        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                    }}
+                    
+                    .prediction-grid {{
+                        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    }}
+                }}
             </style>
         </head><body>
             <div class="container">
-                <a href="/" class="back-btn">&larr; Retour à la liste</a>
-                <h2>{team1} vs {team2}</h2>
-                <p><b>Ligue :</b> {league} | <b>Sport :</b> {sport}</p>
-                <p><b>Score :</b> {score1} - {score2}</p>
-                <p><b>Prédiction 1X2 du bot :</b> {prediction}</p>
-                <p><b>Explication :</b> {explication}</p>
-                <div class="highlight-pred">
-                    <b>Prédiction alternative du bot :</b><br>
-                    {prediction_alt if prediction_alt else 'Aucune prédiction alternative disponible'}
+                <a href="/" class="back-btn">
+                    <i class="fas fa-arrow-left"></i> Retour à la liste
+                </a>
+                
+                <div class="match-header">
+                    <h2><i class="fas fa-futbol"></i> {team1} vs {team2}</h2>
+                    <div class="score-display">{score1} - {score2}</div>
+                    <div class="match-info">
+                        <div class="info-card">
+                            <i class="fas fa-trophy"></i><br>
+                            <strong>Ligue</strong><br>
+                            {league}
+                        </div>
+                        <div class="info-card">
+                            <i class="fas fa-running"></i><br>
+                            <strong>Sport</strong><br>
+                            {sport}
+                        </div>
+                        <div class="info-card">
+                            <i class="fas fa-clock"></i><br>
+                            <strong>Statut</strong><br>
+                            {'En cours' if score1 > 0 or score2 > 0 else 'À venir'}
+                        </div>
+                    </div>
                 </div>
-                <h3>Statistiques principales</h3>
-                <table class="stats-table">
-                    <tr><th>Statistique</th><th>{team1}</th><th>{team2}</th></tr>
-                    {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td></tr>' for s in stats)}
-                </table>
-                <h3>Tableau des paris alternatifs</h3>
-                <table class="alt-table">
-                    <tr><th>Type de pari</th><th>Valeur</th><th>Cote</th><th>Prédiction</th></tr>
-                    {''.join(f'<tr><td>{p["nom"]}</td><td>{p["valeur"]}</td><td>{p["cote"]}</td><td>{generer_prediction_lisible(p["nom"], p["valeur"], team1, team2)}</td></tr>' for p in paris_alternatifs)}
-                </table>
-                <canvas id="statsChart" height="200"></canvas>
+                
+                <div class="prediction-section">
+                    <h3><i class="fas fa-magic"></i> Prédictions du Bot</h3>
+                    <div class="prediction-grid">
+                        <div class="prediction-card">
+                            <i class="fas fa-chart-line"></i><br>
+                            <strong>Prédiction 1X2</strong><br>
+                            {prediction}
+                        </div>
+                        <div class="prediction-card">
+                            <i class="fas fa-star"></i><br>
+                            <strong>Prédiction Alternative</strong><br>
+                            {prediction_alt if prediction_alt else 'Aucune disponible'}
+                        </div>
+                    </div>
+                    <p style="margin-top: 20px; font-style: italic;">
+                        <i class="fas fa-info-circle"></i> {explication}
+                    </p>
+                </div>
+                
+                <h3 class="section-title"><i class="fas fa-chart-bar"></i> Statistiques Visuelles</h3>
+                
+                <div class="charts-section">
+                    <div class="chart-container">
+                        <div class="chart-title">
+                            <i class="fas fa-chart-bar"></i> Comparaison des Statistiques
+                        </div>
+                        <canvas id="statsChart" height="300"></canvas>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <div class="chart-title">
+                            <i class="fas fa-chart-pie"></i> Répartition des Performances
+                        </div>
+                        <canvas id="performanceChart" height="300"></canvas>
+                    </div>
+                </div>
+                
+                <h3 class="section-title"><i class="fas fa-table"></i> Données Détaillées</h3>
+                
+                <div class="chart-container">
+                    <div class="chart-title">Statistiques Principales</div>
+                    <table class="stats-table">
+                        <tr>
+                            <th><i class="fas fa-chart-line"></i> Statistique</th>
+                            <th><i class="fas fa-user"></i> {team1}</th>
+                            <th><i class="fas fa-user"></i> {team2}</th>
+                            <th><i class="fas fa-percentage"></i> Avantage</th>
+                        </tr>
+                        {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td><td><div class="progress-bar"><div class="progress-fill" style="width: {max(10, min(90, (float(s["s1"]) if str(s["s1"]).replace(".", "", 1).isdigit() else 0) / max(1, (float(s["s1"]) if str(s["s1"]).replace(".", "", 1).isdigit() else 0) + (float(s["s2"]) if str(s["s2"]).replace(".", "", 1).isdigit() else 0)) * 100)}%"></div></div></td></tr>' for s in stats)}
+                    </table>
+                </div>
+                
+                <div class="chart-container">
+                    <div class="chart-title">Paris Alternatifs</div>
+                    <table class="alt-table">
+                        <tr>
+                            <th><i class="fas fa-tag"></i> Type de Pari</th>
+                            <th><i class="fas fa-hashtag"></i> Valeur</th>
+                            <th><i class="fas fa-coins"></i> Cote</th>
+                            <th><i class="fas fa-magic"></i> Prédiction</th>
+                        </tr>
+                        {''.join(f'<tr><td>{p["nom"]}</td><td>{p["valeur"]}</td><td><span style="color: #667eea; font-weight: bold;">{p["cote"]}</span></td><td>{generer_prediction_lisible(p["nom"], p["valeur"], team1, team2)}</td></tr>' for p in paris_alternatifs)}
+                    </table>
+                </div>
+                
                 <div class="contact-box">
-                    <b>Contact & Services :</b><br>
+                    <i class="fas fa-envelope" style="font-size: 24px; margin-right: 10px;"></i>
+                    <strong>Contact & Services :</strong><br><br>
                     📬 Inbox Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a><br>
-                    📢 Canal Telegram : <a href="https://t.me/SOLITAIREHACK" target="_blank">SOLITAIREHACK</a><br>
+                    📢 Canal Telegram : <a href="https://t.me/SOLITAIREHACK" target="_blank">SOLITAIREHACK</a><br><br>
                     🎨 Je suis aussi concepteur graphique et créateur de logiciels.<br>
-                    <span style="color:#2980b9;">Vous avez un projet en tête ? Contactez-moi, je suis là pour vous !</span>
+                    <span style="color:#fff; font-size:20px; font-weight:bold; text-shadow: 0 2px 4px rgba(0,0,0,0.3);">
+                        Vous avez un projet en tête ? Contactez-moi, je suis là pour vous !
+                    </span>
                 </div>
             </div>
+            
             <script>
+                // Graphique des statistiques principales
                 const labels = {json.dumps([s['nom'] for s in stats])};
                 const data1 = {json.dumps([float(s['s1']) if str(s['s1']).replace('.', '', 1).isdigit() else 0 for s in stats])};
                 const data2 = {json.dumps([float(s['s2']) if str(s['s2']).replace('.', '', 1).isdigit() else 0 for s in stats])};
+                
                 new Chart(document.getElementById('statsChart'), {{
                     type: 'bar',
                     data: {{
                         labels: labels,
                         datasets: [
-                            {{ label: '{team1}', data: data1, backgroundColor: 'rgba(44,62,80,0.7)' }},
-                            {{ label: '{team2}', data: data2, backgroundColor: 'rgba(39,174,96,0.7)' }}
+                            {{
+                                label: '{team1}',
+                                data: data1,
+                                backgroundColor: 'rgba(102, 126, 234, 0.8)',
+                                borderColor: 'rgba(102, 126, 234, 1)',
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false,
+                            }},
+                            {{
+                                label: '{team2}',
+                                data: data2,
+                                backgroundColor: 'rgba(118, 75, 162, 0.8)',
+                                borderColor: 'rgba(118, 75, 162, 1)',
+                                borderWidth: 2,
+                                borderRadius: 8,
+                                borderSkipped: false,
+                            }}
                         ]
                     }},
-                    options: {{ responsive: true, plugins: {{ legend: {{ position: 'top' }} }} }}
+                    options: {{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {{
+                            legend: {{
+                                position: 'top',
+                                labels: {{
+                                    font: {{
+                                        size: 14,
+                                        weight: 'bold'
+                                    }},
+                                    padding: 20
+                                }}
+                            }},
+                            title: {{
+                                display: true,
+                                text: 'Comparaison des Statistiques',
+                                font: {{
+                                    size: 18,
+                                    weight: 'bold'
+                                }}
+                            }}
+                        }},
+                        scales: {{
+                            y: {{
+                                beginAtZero: true,
+                                grid: {{
+                                    color: 'rgba(0,0,0,0.1)'
+                                }}
+                            }},
+                            x: {{
+                                grid: {{
+                                    display: false
+                                }}
+                            }}
+                        }},
+                        animation: {{
+                            duration: 2000,
+                            easing: 'easeInOutQuart'
+                        }}
+                    }}
+                }});
+                
+                // Graphique de performance (donut chart)
+                const total1 = data1.reduce((a, b) => a + b, 0);
+                const total2 = data2.reduce((a, b) => a + b, 0);
+                
+                new Chart(document.getElementById('performanceChart'), {{
+                    type: 'doughnut',
+                    data: {{
+                        labels: ['{team1}', '{team2}'],
+                        datasets: [{{
+                            data: [total1, total2],
+                            backgroundColor: [
+                                'rgba(102, 126, 234, 0.8)',
+                                'rgba(118, 75, 162, 0.8)'
+                            ],
+                            borderColor: [
+                                'rgba(102, 126, 234, 1)',
+                                'rgba(118, 75, 162, 1)'
+                            ],
+                            borderWidth: 3,
+                            hoverOffset: 4
+                        }}]
+                    }},
+                    options: {{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {{
+                            legend: {{
+                                position: 'bottom',
+                                labels: {{
+                                    font: {{
+                                        size: 14,
+                                        weight: 'bold'
+                                    }},
+                                    padding: 20
+                                }}
+                            }},
+                            title: {{
+                                display: true,
+                                text: 'Répartition des Performances',
+                                font: {{
+                                    size: 18,
+                                    weight: 'bold'
+                                }}
+                            }}
+                        }},
+                        animation: {{
+                            duration: 2000,
+                            easing: 'easeInOutQuart'
+                        }}
+                    }}
+                }});
+                
+                // Animation au scroll
+                const observerOptions = {{
+                    threshold: 0.1,
+                    rootMargin: '0px 0px -50px 0px'
+                }};
+                
+                const observer = new IntersectionObserver(function(entries) {{
+                    entries.forEach(entry => {{
+                        if (entry.isIntersecting) {{
+                            entry.target.style.opacity = '1';
+                            entry.target.style.transform = 'translateY(0)';
+                        }}
+                    }});
+                }}, observerOptions);
+                
+                document.querySelectorAll('.chart-container').forEach(el => {{
+                    el.style.opacity = '0';
+                    el.style.transform = 'translateY(30px)';
+                    el.style.transition = 'all 0.6s ease';
+                    observer.observe(el);
                 }});
             </script>
         </body></html>
@@ -772,42 +1311,99 @@ TEMPLATE = """<!DOCTYPE html>
             100% { transform: rotate(360deg); } 
         }
         
-        /* Responsive amélioré */
+        /* Responsive amélioré pour mobile et PC */
         @media (max-width: 768px) {
-            .container { padding: 20px; margin: 10px; }
-            h2 { font-size: 2em; }
-            form { flex-direction: column; }
-            .stats-grid { grid-template-columns: 1fr; }
-            .table-container { overflow-x: auto; }
-            table, thead, tbody, th, td, tr { display: block; }
-            th { position: absolute; left: -9999px; top: -9999px; }
+            .container { 
+                padding: 15px; 
+                margin: 5px; 
+                border-radius: 15px;
+            }
+            
+            h2 { 
+                font-size: 1.8em; 
+                margin-bottom: 20px;
+            }
+            
+            .filters-container {
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+            
+            form { 
+                flex-direction: column; 
+                gap: 10px;
+            }
+            
+            select {
+                width: 100%;
+                margin: 5px 0;
+            }
+            
+            .stats-grid { 
+                grid-template-columns: 1fr; 
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .stat-card {
+                padding: 15px;
+            }
+            
+            .table-container { 
+                overflow-x: auto; 
+                margin-bottom: 20px;
+                border-radius: 15px;
+            }
+            
+            /* Transformation du tableau pour mobile */
+            table { 
+                min-width: 100%;
+                border-collapse: collapse;
+            }
+            
+            thead { display: none; }
+            
+            tbody { display: block; }
+            
             tr { 
-                margin-bottom: 20px; 
+                display: block;
+                margin-bottom: 15px; 
                 background: white; 
                 border-radius: 15px; 
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1);
                 padding: 15px;
+                border: 1px solid #eee;
             }
+            
             td { 
+                display: block;
                 border: none; 
-                border-bottom: 1px solid #eee; 
+                border-bottom: 1px solid #f0f0f0; 
                 position: relative; 
-                padding-left: 50%; 
+                padding: 12px 15px 12px 120px; 
                 min-height: 50px; 
-                font-size: 16px; 
-                display: flex;
-                align-items: center;
+                font-size: 14px; 
+                text-align: left;
             }
+            
+            td:last-child {
+                border-bottom: none;
+                padding: 15px;
+                text-align: center;
+            }
+            
             td:before { 
                 position: absolute; 
                 top: 50%;
                 left: 15px; 
-                width: 45%; 
+                width: 100px; 
                 white-space: nowrap; 
                 font-weight: bold; 
                 color: #667eea;
                 transform: translateY(-50%);
+                font-size: 12px;
             }
+            
             td:nth-of-type(1):before { content: '🏆 Équipe 1'; }
             td:nth-of-type(2):before { content: '⚽ Score 1'; }
             td:nth-of-type(3):before { content: '⚽ Score 2'; }
@@ -821,6 +1417,77 @@ TEMPLATE = """<!DOCTYPE html>
             td:nth-of-type(11):before { content: '💰 Cotes'; }
             td:nth-of-type(12):before { content: '🔮 Prédiction'; }
             td:nth-of-type(13):before { content: '📋 Détails'; }
+            
+            .details-btn {
+                width: 100%;
+                padding: 15px;
+                font-size: 16px;
+                margin: 10px 0;
+            }
+            
+            .pagination {
+                margin: 20px 0;
+            }
+            
+            .pagination button {
+                padding: 12px 20px;
+                font-size: 14px;
+                margin: 5px;
+            }
+            
+            .contact-box {
+                padding: 20px;
+                font-size: 16px;
+                margin: 20px auto;
+            }
+            
+            .contact-box a {
+                font-size: 18px;
+            }
+        }
+        
+        /* Optimisations pour tablettes */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .container {
+                max-width: 95%;
+                padding: 25px;
+            }
+            
+            .table-container {
+                overflow-x: auto;
+            }
+            
+            table {
+                min-width: 800px;
+            }
+            
+            .details-btn {
+                padding: 8px 15px;
+                font-size: 14px;
+            }
+        }
+        
+        /* Optimisations pour PC */
+        @media (min-width: 1025px) {
+            .container {
+                max-width: 1400px;
+            }
+            
+            .table-container {
+                overflow: visible;
+            }
+            
+            .details-btn {
+                padding: 10px 20px;
+                font-size: 16px;
+                white-space: nowrap;
+            }
+            
+            /* Assurer que le bouton détails est toujours visible */
+            td:last-child {
+                min-width: 120px;
+                text-align: center;
+            }
         }
         
         /* Effets de scroll */
