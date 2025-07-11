@@ -2,8 +2,32 @@ from flask import Flask, request, render_template_string
 import requests
 import os
 import datetime
+import json
 
 app = Flask(__name__)
+
+def load_json_data():
+    """Charge les données depuis le fichier JSON local"""
+    try:
+        with open('Get1x2_VZip (3).json', 'r', encoding='utf-8') as file:
+            data = json.load(file)
+            return data.get("Value", [])
+    except FileNotFoundError:
+        print("Fichier JSON non trouvé, utilisation de l'API en ligne")
+        return load_from_api()
+    except Exception as e:
+        print(f"Erreur lors du chargement du fichier JSON: {e}")
+        return load_from_api()
+
+def load_from_api():
+    """Charge les données depuis l'API en ligne (fallback)"""
+    try:
+        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
+        response = requests.get(api_url)
+        return response.json().get("Value", [])
+    except Exception as e:
+        print(f"Erreur lors du chargement depuis l'API: {e}")
+        return []
 
 @app.route('/')
 def home():
@@ -12,9 +36,8 @@ def home():
         selected_league = request.args.get("league", "").strip()
         selected_status = request.args.get("status", "").strip()
 
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
-        response = requests.get(api_url)
-        matches = response.json().get("Value", [])
+        # Utiliser le fichier JSON local
+        matches = load_json_data()
 
         sports_detected = set()
         leagues_detected = set()
@@ -179,13 +202,102 @@ def detect_sport(league_name):
     else:
         return "Football"
 
+def traduire_pari(nom, valeur=None):
+    """Traduit le nom d'un pari alternatif et sa valeur en français."""
+    nom_str = str(nom).lower() if nom else ""
+    valeur_str = str(valeur) if valeur is not None else ""
+    valeur_str_lower = valeur_str.lower()
+    # Cas Oui/Non
+    if valeur_str_lower in ["yes", "oui"]:
+        choix = "Oui"
+    elif valeur_str_lower in ["no", "non"]:
+        choix = "Non"
+    else:
+        choix = valeur_str
+    if "total" in nom_str:
+        if "over" in nom_str or "over" in valeur_str_lower or "+" in valeur_str:
+            return ("Plus de buts", choix)
+        elif "under" in nom_str or "under" in valeur_str_lower or "-" in valeur_str:
+            return ("Moins de buts", choix)
+        else:
+            return ("Total buts", choix)
+    elif "both teams to score" in nom_str:
+        return ("Les deux équipes marquent", choix)
+    elif "handicap" in nom_str:
+        return ("Handicap", choix)
+    elif "double chance" in nom_str:
+        return ("Double chance", choix)
+    elif "draw no bet" in nom_str:
+        return ("Remboursé si match nul", choix)
+    elif "odd/even" in nom_str or "odd" in nom_str or "even" in nom_str:
+        return ("Nombre de buts pair/impair", choix)
+    elif "clean sheet" in nom_str:
+        return ("Clean sheet (équipe ne prend pas de but)", choix)
+    elif "correct score" in nom_str:
+        return ("Score exact", choix)
+    elif "win to nil" in nom_str:
+        return ("Gagne sans encaisser de but", choix)
+    elif "first goal" in nom_str:
+        return ("Première équipe à marquer", choix)
+    elif "to win" in nom_str:
+        return ("Pour gagner", choix)
+    else:
+        return (nom_str.capitalize(), choix)
+
+def traduire_pari_type_groupe(type_pari, groupe, param, team1=None, team2=None):
+    """Traduit le type de pari selon T, G et P (structure 1xbet) avec mapping explicite, noms d'équipes et distinction Over/Under."""
+    # 1X2
+    if groupe == 1 and type_pari in [1, 2, 3]:
+        return {1: f"Victoire {team1}", 2: f"Victoire {team2}", 3: "Match nul"}.get(type_pari, "1X2")
+    # Handicap
+    if groupe == 2:
+        if param is not None:
+            if type_pari == 1 and team1:
+                return f"Handicap {team1} {param}"
+            elif type_pari == 2 and team2:
+                return f"Handicap {team2} {param}"
+            else:
+                return f"Handicap {param}"
+        return "Handicap"
+    # Over/Under (souvent G8 ou G17 ou G62)
+    if groupe in [8, 17, 62]:
+        if param is not None:
+            seuil = abs(float(param))
+            if type_pari in [9]:  # T=9 = Over (Plus de)
+                return f"Plus de {seuil} buts"
+            elif type_pari in [10]:  # T=10 = Under (Moins de)
+                return f"Moins de {seuil} buts"
+            # fallback si on ne sait pas
+            if float(param) > 0:
+                return f"Plus de {seuil} buts"
+            else:
+                return f"Moins de {seuil} buts"
+        return "Plus/Moins de buts"
+    # Score exact
+    if groupe == 15:
+        if param is not None:
+            return f"Score exact {param}"
+        return "Score exact"
+    # Double chance
+    if groupe == 3:
+        if type_pari == 1 and team1 and team2:
+            return f"Double chance {team1} ou {team2}"
+        elif type_pari == 2 and team1:
+            return f"Double chance {team1} ou Nul"
+        elif type_pari == 3 and team2:
+            return f"Double chance {team2} ou Nul"
+        return "Double chance"
+    # Nombre de buts
+    if groupe in [19, 180, 181]:
+        return "Nombre de buts"
+    # Ajoute d'autres mappings selon tes observations
+    return f"Pari spécial (G{groupe} T{type_pari})"
+
 @app.route('/match/<int:match_id>')
 def match_details(match_id):
     try:
-        # Récupérer les données de l'API (ou brute.json si besoin)
-        api_url = "https://1xbet.com/LiveFeed/Get1x2_VZip?count=100&lng=fr&gr=70&mode=4&country=96&top=true"
-        response = requests.get(api_url)
-        matches = response.json().get("Value", [])
+        # Récupérer les données depuis le fichier JSON local
+        matches = load_json_data()
         match = next((m for m in matches if m.get("I") == match_id), None)
         if not match:
             return f"Aucun match trouvé pour l'identifiant {match_id}"
@@ -216,7 +328,7 @@ def match_details(match_id):
                 stats.append({"nom": nom, "s1": s1, "s2": s2})
         # Explication prédiction (simple)
         explication = "La prédiction est basée sur les cotes et les statistiques principales (tirs, possession, etc.)."  # Peut être enrichi
-        # Prédiction
+        # Prédiction 1X2
         odds_data = []
         for o in match.get("E", []):
             if o.get("G") == 1 and o.get("T") in [1, 2, 3] and o.get("C") is not None:
@@ -241,7 +353,46 @@ def match_details(match_id):
                 "2": f"{team2} gagne",
                 "X": "Match nul"
             }.get(best["type"], "–")
-        # HTML avec graphiques Chart.js CDN
+        # --- Paris alternatifs ---
+        paris_alternatifs = []
+        # 1. E (marchés principaux et alternatifs)
+        for o in match.get("E", []):
+            if o.get("G") != 1 and o.get("C") is not None:
+                type_pari = o.get("T")
+                groupe = o.get("G")
+                param = o.get("P") if "P" in o else None
+                nom_traduit = traduire_pari_type_groupe(type_pari, groupe, param, team1, team2)
+                valeur = param if param is not None else ""
+                cote = o.get("C")
+                paris_alternatifs.append({
+                    "nom": nom_traduit,
+                    "valeur": valeur,
+                    "cote": cote
+                })
+        # 2. AE (marchés alternatifs étendus)
+        for ae in match.get("AE", []):
+            if ae.get("G") != 1:
+                for o in ae.get("ME", []):
+                    if o.get("C") is not None:
+                        type_pari = o.get("T")
+                        groupe = o.get("G")
+                        param = o.get("P") if "P" in o else None
+                        nom_traduit = traduire_pari_type_groupe(type_pari, groupe, param, team1, team2)
+                        valeur = param if param is not None else ""
+                        cote = o.get("C")
+                        paris_alternatifs.append({
+                            "nom": nom_traduit,
+                            "valeur": valeur,
+                            "cote": cote
+                        })
+        # Filtrer les paris alternatifs selon la cote demandée
+        paris_alternatifs = [p for p in paris_alternatifs if 1.499 <= float(p["cote"]) <= 3]
+        # Sélection de la prédiction alternative la plus probable (cote la plus basse)
+        prediction_alt = None
+        if paris_alternatifs:
+            meilleur_pari = min(paris_alternatifs, key=lambda x: x["cote"])
+            prediction_alt = f"{meilleur_pari['nom']} ({meilleur_pari['valeur']}) à {meilleur_pari['cote']}"
+        # HTML avec tableau des paris alternatifs
         return f'''
         <!DOCTYPE html>
         <html><head>
@@ -251,11 +402,14 @@ def match_details(match_id):
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
             <style>
                 body {{ font-family: Arial; padding: 20px; background: #f4f4f4; }}
-                .container {{ max-width: 700px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px #ccc; padding: 20px; }}
+                .container {{ max-width: 800px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px #ccc; padding: 20px; }}
                 h2 {{ text-align: center; }}
-                .stats-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-                .stats-table th, .stats-table td {{ border: 1px solid #ccc; padding: 8px; text-align: center; }}
+                .stats-table, .alt-table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+                .stats-table th, .stats-table td, .alt-table th, .alt-table td {{ border: 1px solid #ccc; padding: 8px; text-align: center; }}
                 .back-btn {{ margin-bottom: 20px; display: inline-block; }}
+                .highlight-pred {{ background: #eaf6fb; color: #2980b9; font-weight: bold; padding: 10px; border-radius: 6px; margin-bottom: 15px; }}
+                .contact-box {{ background: #f0f8ff; border: 1.5px solid #2980b9; border-radius: 8px; margin-top: 30px; padding: 18px; text-align: center; font-size: 17px; }}
+                .contact-box a {{ color: #1565c0; font-weight: bold; text-decoration: none; }}
             </style>
         </head><body>
             <div class="container">
@@ -263,14 +417,30 @@ def match_details(match_id):
                 <h2>{team1} vs {team2}</h2>
                 <p><b>Ligue :</b> {league} | <b>Sport :</b> {sport}</p>
                 <p><b>Score :</b> {score1} - {score2}</p>
-                <p><b>Prédiction du bot :</b> {prediction}</p>
+                <p><b>Prédiction 1X2 du bot :</b> {prediction}</p>
                 <p><b>Explication :</b> {explication}</p>
+                <div class="highlight-pred">
+                    <b>Prédiction alternative du bot :</b><br>
+                    {prediction_alt if prediction_alt else 'Aucune prédiction alternative disponible'}
+                </div>
                 <h3>Statistiques principales</h3>
                 <table class="stats-table">
                     <tr><th>Statistique</th><th>{team1}</th><th>{team2}</th></tr>
                     {''.join(f'<tr><td>{s["nom"]}</td><td>{s["s1"]}</td><td>{s["s2"]}</td></tr>' for s in stats)}
                 </table>
+                <h3>Tableau des paris alternatifs</h3>
+                <table class="alt-table">
+                    <tr><th>Type de pari</th><th>Valeur</th><th>Cote</th><th>Prédiction</th></tr>
+                    {''.join(f'<tr><td>{p["nom"]}</td><td>{p["valeur"]}</td><td>{p["cote"]}</td><td>{generer_prediction_lisible(p["nom"], p["valeur"], team1, team2)}</td></tr>' for p in paris_alternatifs)}
+                </table>
                 <canvas id="statsChart" height="200"></canvas>
+                <div class="contact-box">
+                    <b>Contact & Services :</b><br>
+                    📬 Inbox Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a><br>
+                    📢 Canal Telegram : <a href="https://t.me/SOLITAIREHACK" target="_blank">SOLITAIREHACK</a><br>
+                    🎨 Je suis aussi concepteur graphique et créateur de logiciels.<br>
+                    <span style="color:#2980b9;">Vous avez un projet en tête ? Contactez-moi, je suis là pour vous !</span>
+                </div>
             </div>
             <script>
                 const labels = { [repr(s['nom']) for s in stats] };
@@ -342,6 +512,9 @@ TEMPLATE = """<!DOCTYPE html>
         @keyframes spin { 100% { transform: rotate(360deg); } }
         /* Focus visible for accessibility */
         a:focus, button:focus, select:focus { outline: 2px solid #27ae60; }
+        .contact-box { background: #ff1744; border: 4px solid #ff1744; border-radius: 16px; margin: 40px auto 0 auto; padding: 28px; text-align: center; font-size: 22px; font-weight: bold; color: #fff; max-width: 650px; box-shadow: 0 0 24px 8px #ff1744, 0 0 60px 10px #fff3; text-shadow: 0 0 8px #fff, 0 0 16px #ff1744; letter-spacing: 1px; }
+        .contact-box a { color: #fff; font-weight: bold; text-decoration: underline; font-size: 26px; text-shadow: 0 0 8px #fff, 0 0 16px #ff1744; }
+        .contact-box .icon { font-size: 32px; vertical-align: middle; margin-right: 10px; filter: drop-shadow(0 0 6px #fff); }
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -412,7 +585,33 @@ TEMPLATE = """<!DOCTYPE html>
         </tr>
         {% endfor %}
     </table>
+    <div class="contact-box">
+        <span class="icon">📬</span> Inbox Telegram : <a href="https://t.me/Roidesombres225" target="_blank">@Roidesombres225</a><br>
+        <span class="icon">📢</span> Canal Telegram : <a href="https://t.me/SOLITAIREHACK" target="_blank">SOLITAIREHACK</a><br>
+        <span class="icon">🎨</span> Je suis aussi concepteur graphique et créateur de logiciels.<br>
+        <span style="color:#d84315; font-size:22px; font-weight:bold;">Vous avez un projet en tête ? Contactez-moi, je suis là pour vous !</span>
+    </div>
 </body></html>"""
+
+def generer_prediction_lisible(nom, valeur, team1, team2):
+    """Génère une phrase prédictive claire pour chaque pari, en précisant l'équipe si besoin."""
+    if nom.startswith("Victoire "):
+        return f"{nom}"
+    if nom.startswith("Handicap "):
+        return f"{nom}"
+    if nom.startswith("Plus de") or nom.startswith("Moins de"):
+        return f"{nom}"
+    if nom.startswith("Score exact"):
+        return f"{nom}"
+    if nom.startswith("Double chance"):
+        return f"{nom}"
+    if nom.startswith("Nombre de buts"):
+        return f"{nom}"
+    if team1 and team1 in nom:
+        return f"{nom} ({team1})"
+    if team2 and team2 in nom:
+        return f"{nom} ({team2})"
+    return nom
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
